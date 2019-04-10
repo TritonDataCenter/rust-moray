@@ -121,6 +121,39 @@ impl MorayClient {
 
         buckets
     }
+
+    /*
+     * TODO:
+     *      * 'opts' should be a defined struct
+     */
+    pub fn sql<F>(
+        &mut self,
+        stmt: &str,
+        vals: Vec<&str>,
+        opts: &str,
+        mut query_handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&Value) -> Result<(), Error>,
+    {
+        let options: Value = serde_json::from_str(opts).unwrap();
+        let values: Value = json!(vals);
+        let args: Value = json!([stmt, values, options]);
+
+        match mod_client::send(String::from("sql"), args, &mut self.stream)
+            .and_then(|_| {
+                mod_client::receive(&mut self.stream, |resp| {
+                    dbg!(&resp.data.d);
+                    match query_handler(&resp.data.d) {
+                        Ok(()) => Ok(()),
+                        Err(e) => Err(e)
+                    }
+                })
+            }) {
+            Ok(_s) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 impl FromStr for MorayClient {

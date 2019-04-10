@@ -26,7 +26,7 @@ fn client_fromparts(ip: [u8; 4], port: u16) {
 
 fn main() {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
-    let port: u32 = 2021;
+    let port: u16 = 2021;
 
     let i: Vec<String> = ip_arr.iter().map(|o| o.to_string()).collect();
     let ip = i.join(".");
@@ -40,5 +40,5 @@ fn main() {
     client_sockaddr(sockaddr);
 
     println!("MorayClient from_parts");
-    client_fromparts(ip_arr, 2021);
+    client_fromparts(ip_arr, port);
 }
