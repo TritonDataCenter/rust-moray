@@ -28,5 +28,4 @@ fn main() {
 
     println!("Testing SQL method");
     query_client_fromparts(ip_arr, port);
-
 }

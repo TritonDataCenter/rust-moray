@@ -51,26 +51,31 @@ pub struct Bucket {
     pre: Vec<String>,
 }
 
-fn decode_bucket(fm_data: &Value) -> Result<Vec<Bucket>, Error> {
-    let mut buckets: Vec<Bucket> = vec![];
+fn decode_bucket<F>(fm_data: &Value, mut cb: F) -> Result<(), Error>
+where
+    F: FnMut(Bucket) -> Result<(), Error>,
+{
     let resp_data: Vec<Value> =
         serde_json::from_value(fm_data.clone()).unwrap();
 
     for bucket_data in resp_data {
         match serde_json::from_value::<BucketIntermediate>(bucket_data.clone())
         {
-            Ok(bi) => buckets.push(Bucket {
+            Ok(bi) => match cb(Bucket {
                 name: bi.name,
                 index: bi.index,
                 mtime: bi.mtime,
                 options: serde_json::from_str(bi.options.as_str()).unwrap(),
                 post: serde_json::from_str(bi.post.as_str()).unwrap(),
                 pre: serde_json::from_str(bi.pre.as_str()).unwrap(),
-            }),
+            }) {
+                Ok(_) => (),
+                Err(err) => return Err(Error::new(ErrorKind::Other, err)),
+            },
             Err(e) => return Err(Error::new(ErrorKind::Other, e)),
-        }
+        };
     }
-    Ok(buckets)
+    Ok(())
 }
 
 ///
@@ -95,31 +100,35 @@ impl MorayClient {
     }
 
     // TODO: this should return a Result<Vec<Bucket>, Error>
-    pub fn list_buckets(&mut self) -> Vec<Bucket> {
-        let mut buckets: Vec<Bucket> = vec![];
+    pub fn list_buckets<F>(
+        &mut self,
+        mut bucket_handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&Bucket) -> Result<(), Error>,
+    {
         let empty_arg = serde_json::from_str(r#"[{}]"#).unwrap();
-        let result = mod_client::send(
+        match mod_client::send(
             String::from("listBuckets"),
             empty_arg,
             &mut self.stream,
         )
         .and_then(|_| {
             mod_client::receive(&mut self.stream, |resp| {
-                match decode_bucket(&resp.data.d) {
-                    Ok(b) => {
-                        buckets.extend(b);
-                        Ok(())
+                match decode_bucket(&resp.data.d, |b| {
+                    match bucket_handler(&b) {
+                        Ok(_) => Ok(()),
+                        Err(e) => return Err(Error::new(ErrorKind::Other, e)),
                     }
+                }) {
+                    Ok(_) => Ok(()),
                     Err(e) => Err(Error::new(ErrorKind::Other, e)),
                 }
             })
-        });
-
-        if let Err(e) = result {
-            eprintln!("Error: {}", e)
+        }) {
+            Ok(_s) => Ok(()),
+            Err(e) => Err(e),
         }
-
-        buckets
     }
 
     /*
@@ -146,7 +155,7 @@ impl MorayClient {
                     dbg!(&resp.data.d);
                     match query_handler(&resp.data.d) {
                         Ok(()) => Ok(()),
-                        Err(e) => Err(e)
+                        Err(e) => Err(e),
                     }
                 })
             }) {
@@ -238,6 +247,7 @@ mod tests {
     // TODO: Create array of multiple buckets
     quickcheck! {
         fn decode_bucket_test(bucket: Bucket) -> bool {
+            let mut pass = false;
             let bucket_clone = bucket.clone();
             let bi = create_intermediate_bucket(bucket);
             let mut map = Map::new();
@@ -253,8 +263,11 @@ mod tests {
             let obj = Value::Object(map);
             let input = Value::Array(vec![obj]);
             dbg!(&input);
-            match decode_bucket(&input) {
-                Ok(b) => b[0] == bucket_clone,
+            match decode_bucket(&input, |b| {
+                pass = b == bucket_clone;
+                Ok(())
+            }) {
+                Ok(()) => pass,
                 Err(_e) => false
             }
         }

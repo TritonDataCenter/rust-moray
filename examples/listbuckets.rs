@@ -8,20 +8,44 @@ use std::str::FromStr;
 
 fn client_fromstr(addr: &str) {
     let mut mclient = MorayClient::from_str(addr).unwrap();
-    let data = mclient.list_buckets();
-    dbg!(data);
+    match mclient.list_buckets(|b| {
+        dbg!(b);
+        Ok(())
+    }) {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            ()
+        }
+    }
 }
 
 fn client_sockaddr(sockaddr: SocketAddr) {
     let mut mclient = MorayClient::new(sockaddr).unwrap();
-    let data = mclient.list_buckets();
-    dbg!(data);
+    match mclient.list_buckets(|b| {
+        dbg!(b);
+        Ok(())
+    }) {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            ()
+        }
+    }
 }
 
 fn client_fromparts(ip: [u8; 4], port: u16) {
     let mut mclient = MorayClient::from_parts(ip, port).unwrap();
-    let data = mclient.list_buckets();
-    dbg!(data);
+    match mclient.list_buckets(|b| {
+        dbg!(b);
+        Ok(())
+    }) {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            ()
+        }
+    }
 }
 
 fn main() {
