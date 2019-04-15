@@ -58,24 +58,23 @@ where
     let resp_data: Vec<Value> =
         serde_json::from_value(fm_data.clone()).unwrap();
 
-    for bucket_data in resp_data {
-        match serde_json::from_value::<BucketIntermediate>(bucket_data.clone())
-        {
-            Ok(bi) => match cb(Bucket {
-                name: bi.name,
-                index: bi.index,
-                mtime: bi.mtime,
-                options: serde_json::from_str(bi.options.as_str()).unwrap(),
-                post: serde_json::from_str(bi.post.as_str()).unwrap(),
-                pre: serde_json::from_str(bi.pre.as_str()).unwrap(),
-            }) {
-                Ok(_) => (),
-                Err(err) => return Err(Error::new(ErrorKind::Other, err)),
-            },
-            Err(e) => return Err(Error::new(ErrorKind::Other, e)),
-        };
-    }
-    Ok(())
+    let result = Ok(());
+    resp_data.iter().fold(result, |_r, bucket_data| {
+        serde_json::from_value::<BucketIntermediate>(bucket_data.clone())
+            .map_err(|e| {
+                Error::new(ErrorKind::Other, e)
+            })
+            .and_then(|bi| {
+                cb(Bucket {
+                    name: bi.name,
+                    index: bi.index,
+                    mtime: bi.mtime,
+                    options: serde_json::from_str(bi.options.as_str()).unwrap(),
+                    post: serde_json::from_str(bi.post.as_str()).unwrap(),
+                    pre: serde_json::from_str(bi.pre.as_str()).unwrap(),
+                })
+            })
+    })
 }
 
 ///
@@ -115,15 +114,7 @@ impl MorayClient {
         )
         .and_then(|_| {
             mod_client::receive(&mut self.stream, |resp| {
-                match decode_bucket(&resp.data.d, |b| {
-                    match bucket_handler(&b) {
-                        Ok(_) => Ok(()),
-                        Err(e) => return Err(Error::new(ErrorKind::Other, e)),
-                    }
-                }) {
-                    Ok(_) => Ok(()),
-                    Err(e) => Err(Error::new(ErrorKind::Other, e)),
-                }
+                decode_bucket(&resp.data.d, |b| bucket_handler(&b))
             })
         }) {
             Ok(_s) => Ok(()),
@@ -153,10 +144,7 @@ impl MorayClient {
             .and_then(|_| {
                 mod_client::receive(&mut self.stream, |resp| {
                     dbg!(&resp.data.d);
-                    match query_handler(&resp.data.d) {
-                        Ok(()) => Ok(()),
-                        Err(e) => Err(e),
-                    }
+                    query_handler(&resp.data.d)
                 })
             }) {
             Ok(_s) => Ok(()),

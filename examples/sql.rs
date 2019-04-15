@@ -11,21 +11,16 @@ fn query_handler(resp: &Value) -> Result<(), Error> {
     Ok(())
 }
 
-fn query_client_fromparts(ip: [u8; 4], port: u16) {
+fn query_client_fromparts(ip: [u8; 4], port: u16) -> Result<(), Error> {
     let mut mclient = MorayClient::from_parts(ip, port).unwrap();
-    match mclient.sql("select * from manta", vec![], "{}", query_handler) {
-        Ok(()) => (),
-        Err(e) => {
-            println!("Error: {}", e);
-            ()
-        }
-    }
+    mclient.sql("select * from manta limit 10", vec![], "{}", query_handler)
 }
 
-fn main() {
+fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
     let port: u16 = 2021;
 
     println!("Testing SQL method");
-    query_client_fromparts(ip_arr, port);
+    query_client_fromparts(ip_arr, port)?;
+    Ok(())
 }
