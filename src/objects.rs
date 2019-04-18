@@ -1,5 +1,5 @@
 use rust_fast::client as mod_client;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::io::{Error, ErrorKind};
 use std::net::TcpStream;
@@ -13,13 +13,43 @@ pub enum MorayObject {
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct MantaObject {
-    _count: u64, // TODO: Check these types
+    #[serde(default, deserialize_with = "null_to_zero")]
+    _count: u64, // TODO: Sometimes this is Null
     _etag: String,
     _id: u64,
     _mtime: u64,
     // TODO: _txn_snap:
     pub key: String,
     pub value: MantaObjectValue, // TODO: Could possibly make this an enum with a serde tag as well
+}
+
+/*
+ * Could later extend this so that each method maps to a method specific structure which would hold
+ * the possible options for this method, and other method specific data.
+ */
+pub enum Methods {
+    Get,
+    Find,
+}
+
+impl Methods {
+    fn method(&self) -> &str {
+        match *self {
+            Methods::Get => "getObject",
+            Methods::Find => "findObjects",
+        }
+    }
+}
+
+fn null_to_zero<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    match opt {
+        Some(o) => Ok(o),
+        None => Ok(0),
+    }
 }
 
 /*
@@ -83,36 +113,51 @@ where
     F: FnMut(MorayObject) -> Result<(), Error>,
 {
     let result = Ok(());
-    let resp_data: Vec<Value> =
-        serde_json::from_value(fm_data.clone()).unwrap();
 
-    resp_data.iter().fold(result, |_r, object_data| {
-        serde_json::from_value::<MorayObject>(object_data.clone())
-            .map_err(|e| Error::new(ErrorKind::Other, e))
-            .and_then(|obj| cb(obj))
-    })
+    if fm_data.is_array() {
+        let resp_data: Vec<Value> =
+            serde_json::from_value(fm_data.clone()).unwrap();
+
+        return resp_data.iter().fold(result, |_r, object_data| {
+            serde_json::from_value::<MorayObject>(object_data.clone())
+                .map_err(|e| {
+                    // TODO: this should propagate error up
+                    eprintln!("ERROR: {}", &e);
+                    Error::new(ErrorKind::Other, e)
+                })
+                .and_then(|obj| cb(obj))
+        });
+    }
+
+    assert_eq!(fm_data.is_object(), true);
+
+    serde_json::from_value::<MorayObject>(fm_data.clone())
+        .map_err(|e| Error::new(ErrorKind::Other, e))
+        .and_then(|obj| cb(obj))?;
+
+    result
 }
 
-pub fn find_objects<F>(
+pub fn get_find_objects<F>(
     stream: &mut TcpStream,
     bucket: &str,
-    filter: &str,
+    key_filter: &str,
     opts: &str,
+    method: Methods,
     mut object_handler: F,
 ) -> Result<(), Error>
 where
     F: FnMut(&MorayObject) -> Result<(), Error>,
 {
     let options: Value = serde_json::from_str(opts).unwrap();
-    let arg = json!([bucket, filter, options]);
+    let arg = json!([bucket, key_filter, options]);
+    let obj_method = method.method();
 
-    mod_client::send(String::from("findObjects"), arg, stream).and_then(
-        |_| {
-            mod_client::receive(stream, |resp| {
-                decode_object(&resp.data.d, |obj| object_handler(&obj))
-            })
-        },
-    )?;
+    mod_client::send(String::from(obj_method), arg, stream).and_then(|_| {
+        mod_client::receive(stream, |resp| {
+            decode_object(&resp.data.d, |obj| object_handler(&obj))
+        })
+    })?;
 
     Ok(())
 }

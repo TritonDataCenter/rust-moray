@@ -46,6 +46,26 @@ impl MorayClient {
         Ok(())
     }
 
+    pub fn get_object<F>(
+        &mut self,
+        bucket: &str,
+        key: &str,
+        opts: &str,
+        object_handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&objects::MorayObject) -> Result<(), Error>,
+    {
+        objects::get_find_objects(
+            &mut self.stream,
+            bucket,
+            key,
+            opts,
+            objects::Methods::Get,
+            object_handler,
+        )
+    }
+
     pub fn find_objects<F>(
         &mut self,
         bucket: &str,
@@ -56,14 +76,14 @@ impl MorayClient {
     where
         F: FnMut(&objects::MorayObject) -> Result<(), Error>,
     {
-        objects::find_objects(
+        objects::get_find_objects(
             &mut self.stream,
             bucket,
             filter,
             opts,
+            objects::Methods::Find,
             object_handler,
-        )?;
-        Ok(())
+        )
     }
 
     /*
