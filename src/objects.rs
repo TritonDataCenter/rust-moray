@@ -14,7 +14,7 @@ pub enum MorayObject {
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct MantaObject {
     #[serde(default, deserialize_with = "null_to_zero")]
-    _count: u64, // TODO: Sometimes this is Null
+    _count: u64,
     _etag: String,
     _id: u64,
     _mtime: u64,
@@ -30,13 +30,15 @@ pub struct MantaObject {
 pub enum Methods {
     Get,
     Find,
+    Put,
 }
 
 impl Methods {
-    fn method(&self) -> &str {
+    fn method(&self) -> String {
         match *self {
-            Methods::Get => "getObject",
-            Methods::Find => "findObjects",
+            Methods::Get => String::from("getObject"),
+            Methods::Find => String::from("findObjects"),
+            Methods::Put => String::from("putObject"),
         }
     }
 }
@@ -51,17 +53,6 @@ where
         None => Ok(0),
     }
 }
-
-/*
-value:
-#[serde(tag = "type")]
-enum MantaValue {
-    MantaValueObject {
-    }
-    MantaValueDirectory {
-    }
-}
-*/
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct MantaObjectValue {
@@ -142,7 +133,7 @@ pub fn get_find_objects<F>(
     stream: &mut TcpStream,
     bucket: &str,
     key_filter: &str,
-    opts: &str,
+    opts: &str, // TODO: Should take Value
     method: Methods,
     mut object_handler: F,
 ) -> Result<(), Error>
@@ -156,6 +147,30 @@ where
     mod_client::send(String::from(obj_method), arg, stream).and_then(|_| {
         mod_client::receive(stream, |resp| {
             decode_object(&resp.data.d, |obj| object_handler(&obj))
+        })
+    })?;
+
+    Ok(())
+}
+
+pub fn put_object<F>(
+    stream: &mut TcpStream,
+    bucket: &str,
+    key: &str,
+    value: Value,
+    opts: &str,
+    mut object_handler: F,
+) -> Result<(), Error>
+where
+    F: FnMut(&Value) -> Result<(), Error>,
+{
+    let options: Value = serde_json::from_str(opts).unwrap();
+    let arg = json!([bucket, key, value, options]);
+
+    mod_client::send(Methods::Put.method(), arg, stream).and_then(|_| {
+        mod_client::receive(stream, |resp| {
+            // TODO: does putObject always return {"etag": "<etag>"}
+            object_handler(&resp.data.d)
         })
     })?;
 

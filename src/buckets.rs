@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::io::{Error, ErrorKind};
 use std::net::TcpStream;
+use uuid::Uuid;
 
 /*
  * === Buckets ===
@@ -32,12 +33,36 @@ struct BucketIntermediate {
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct Bucket {
-    index: String,
+    index: Value,
     mtime: String,
     name: String,
     options: BucketOptions,
     post: Vec<String>,
     pre: Vec<String>,
+}
+
+pub enum Methods {
+    List,
+    Get,
+    Create,
+}
+
+impl Methods {
+    fn method(&self) -> String {
+        match *self {
+            Methods::List => String::from("listBuckets"),
+            Methods::Get => String::from("getBucket"),
+            Methods::Create => String::from("createBucket"),
+        }
+    }
+
+    fn opts(&self) -> Value {
+        match *self {
+            Methods::List | Methods::Get | Methods::Create => {
+                make_bucket_options()
+            }
+        }
+    }
 }
 
 fn decode_bucket<F>(fm_data: &Value, mut cb: F) -> Result<(), Error>
@@ -55,7 +80,7 @@ where
             .and_then(|bi| {
                 cb(Bucket {
                     name: bi.name,
-                    index: bi.index,
+                    index: serde_json::from_str(bi.index.as_str()).unwrap(),
                     mtime: bi.mtime,
                     options: serde_json::from_str(bi.options.as_str()).unwrap(),
                     post: serde_json::from_str(bi.post.as_str()).unwrap(),
@@ -65,22 +90,65 @@ where
     })
 }
 
-pub fn list_buckets<F>(
+/*
+ * TODO:
+ * Eventually we want to allow callers to pass their own options and this function should
+ * handle that merging.
+ */
+fn make_bucket_options() -> Value {
+    json!({
+        "req_id": Uuid::new_v4().to_string()
+    })
+}
+
+pub fn create_bucket(
     stream: &mut TcpStream,
+    name: &str,
+    config: Value,
+    // TODO: opts: &str,
+) -> Result<(), Error> {
+    // TODO: caller should add req_id when we allow options to be passed in
+    let opts = make_bucket_options();
+    let arg = json!([name, config, opts]);
+
+    // TODO: ideally we'd try to get the bucket first, and IFF that fails create it.
+    mod_client::send(Methods::Create.method(), arg, stream).and_then(|_| {
+        mod_client::receive(stream, |resp| {
+            dbg!(resp); // createBucket returns empty response
+            Ok(())
+        })
+    })?;
+
+    Ok(())
+}
+
+pub fn get_list_buckets<F>(
+    stream: &mut TcpStream,
+    name: &str,
+    method: Methods,
     mut bucket_handler: F,
 ) -> Result<(), Error>
 where
-    F: FnMut(&Bucket) -> Result<(), Error>,
+    F: FnMut(&Bucket) -> Result<(), Error>, //FnOnce?
 {
-    let empty_arg = serde_json::from_str(r#"[{}]"#).unwrap();
+    let opts = method.opts();
+    let mut arg = json!([opts]);
 
-    mod_client::send(String::from("listBuckets"), empty_arg, stream).and_then(
-        |_| {
-            mod_client::receive(stream, |resp| {
-                decode_bucket(&resp.data.d, |b| bucket_handler(&b))
-            })
-        },
-    )?;
+    match method {
+        Methods::Get => {
+            arg = json!([opts, name]);
+        }
+        Methods::List => {
+            // Use default
+        }
+        _ => return Err(Error::new(ErrorKind::Other, "Unsupported Method")),
+    }
+
+    mod_client::send(method.method(), arg, stream).and_then(|_| {
+        mod_client::receive(stream, |resp| {
+            decode_bucket(&resp.data.d, |b| bucket_handler(&b))
+        })
+    })?;
 
     Ok(())
 }
@@ -123,7 +191,13 @@ mod tests {
             let post_len = g.gen::<u8>() as usize;
             let pre_len = g.gen::<u8>() as usize;
 
-            let index = random_string(g, index_len);
+            // TODO: futher randomize index
+            let index = json!({
+                random_string(g, index_len): random_string(g, index_len),
+                random_string(g, index_len): random_string(g, index_len),
+                random_string(g, index_len): random_string(g, index_len),
+            });
+
             let mtime = random_string(g, mtime_len);
             let name = random_string(g, name_len);
             let options = BucketOptions::arbitrary(g);
@@ -143,7 +217,7 @@ mod tests {
 
     fn create_intermediate_bucket(bucket: Bucket) -> BucketIntermediate {
         BucketIntermediate {
-            index: bucket.index,
+            index: serde_json::to_string(&bucket.index).unwrap(),
             mtime: bucket.mtime,
             name: bucket.name,
             options: serde_json::to_string(&bucket.options).unwrap(),
@@ -172,6 +246,7 @@ mod tests {
             let input = Value::Array(vec![obj]);
             dbg!(&input);
             match decode_bucket(&input, |b| {
+                dbg!(&b);
                 pass = b == bucket_clone;
                 Ok(())
             }) {
