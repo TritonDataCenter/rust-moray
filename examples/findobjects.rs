@@ -52,8 +52,8 @@ fn main() -> Result<(), Error> {
     mclient.get_object("manta", key.as_str(), getopts.as_str(), |o| {
         match o {
             MorayObject::Manta(mantaobj) => {
-                println!("Found    checksum: {}", &mantaobj.value.content_md5);
-                println!("Expected checksum: {}", &checksum);
+                println!("Found checksum:     {}", &mantaobj.value.content_md5);
+                println!("Expected checksum:  {}", &checksum);
                 assert_eq!(mantaobj.value.content_md5, checksum);
                 ()
             }
