@@ -3,6 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::io::{Error, ErrorKind};
 use std::net::TcpStream;
+use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 #[serde(tag = "bucket")]
@@ -14,13 +15,53 @@ pub enum MorayObject {
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct MantaObject {
     #[serde(default, deserialize_with = "null_to_zero")]
-    _count: u64,
-    _etag: String,
-    _id: u64,
-    _mtime: u64,
+    pub _count: u64,
+    pub _etag: String,
+    pub _id: u64,
+    pub _mtime: u64,
     // TODO: _txn_snap:
     pub key: String,
     pub value: MantaObjectValue, // TODO: Could possibly make this an enum with a serde tag as well
+}
+
+///
+/// * Undefined: Clobber any object on put
+/// * Nulled: An object with the same key must not exist
+/// * Specified(String): The object will only be added or overwritten if the
+///     etag (String) matches the existing value
+pub enum Etag {
+    Undefined,
+    Nulled,
+    Specified(String),
+}
+
+// TODO: include _value: String = serde_json::to_string(value)
+pub struct Options {
+    pub req_id: String, // UUID as String
+    pub etag: Etag,
+    pub headers: Value,
+    pub no_count: bool,
+    pub sql_only: bool,
+    pub no_cache: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            req_id: Uuid::new_v4().to_string(),
+            etag: Etag::Undefined,
+            headers: json!({}),
+            no_count: false,
+            sql_only: false,
+            no_cache: true,
+        }
+    }
+}
+
+impl Options {
+    pub fn new() -> Options {
+        Options::default()
+    }
 }
 
 /*
@@ -153,23 +194,52 @@ where
     Ok(())
 }
 
+fn make_options(options: &Options) -> Value {
+    let json_value = json!({
+        "req_id": options.req_id,
+        "headers": options.headers,
+        "no_count": options.no_count,
+        "sql_only": options.sql_only,
+        "noCache": options.no_cache,
+    });
+
+    let mut ret = json_value.as_object().unwrap().clone();
+
+    match &options.etag {
+        Etag::Undefined => (),
+        Etag::Nulled => {
+            ret.insert(String::from("etag"), Value::Null);
+        }
+        Etag::Specified(s) => {
+            ret.insert(
+                String::from("etag"),
+                serde_json::from_str(s.as_str()).unwrap(),
+            );
+        }
+    }
+
+    serde_json::to_value(ret).unwrap()
+}
+
 pub fn put_object<F>(
     stream: &mut TcpStream,
     bucket: &str,
     key: &str,
     value: Value,
-    opts: &str,
+    opts: &Options,
     mut object_handler: F,
 ) -> Result<(), Error>
 where
     F: FnMut(&Value) -> Result<(), Error>,
 {
-    let options: Value = serde_json::from_str(opts).unwrap();
-    let arg = json!([bucket, key, value, options]);
+    let arg = json!([bucket, key, value, make_options(opts)]);
 
     mod_client::send(Methods::Put.method(), arg, stream).and_then(|_| {
         mod_client::receive(stream, |resp| {
-            // TODO: does putObject always return {"etag": "<etag>"}
+            /*
+             * TODO: deserialize the return value which is:
+             * Array([Object({"etag": String()})])
+             */
             object_handler(&resp.data.d)
         })
     })?;

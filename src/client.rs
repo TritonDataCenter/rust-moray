@@ -113,7 +113,7 @@ impl MorayClient {
         bucket: &str,
         key: &str,
         value: Value,
-        opts: &str,
+        opts: &objects::Options,
         object_handler: F,
     ) -> Result<(), Error>
     where
