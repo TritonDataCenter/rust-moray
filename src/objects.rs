@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Joyent, Inc.
+ */
+
 use rust_fast::client as mod_client;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -12,7 +16,7 @@ pub enum MorayObject {
     Manta(MantaObject),
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+#[derive(Deserialize, Default, Serialize, PartialEq, Debug, Clone)]
 pub struct MantaObject {
     #[serde(default, deserialize_with = "null_to_zero")]
     pub _count: u64,
@@ -29,6 +33,7 @@ pub struct MantaObject {
 /// * Nulled: An object with the same key must not exist
 /// * Specified(String): The object will only be added or overwritten if the
 ///     etag (String) matches the existing value
+#[derive(Debug)]
 pub enum Etag {
     Undefined,
     Nulled,
@@ -36,7 +41,8 @@ pub enum Etag {
 }
 
 // TODO: include _value: String = serde_json::to_string(value)
-pub struct Options {
+#[derive(Debug)]
+pub struct ObjectMethodOptions {
     pub req_id: String, // UUID as String
     pub etag: Etag,
     pub headers: Value,
@@ -45,7 +51,7 @@ pub struct Options {
     pub no_cache: bool,
 }
 
-impl Default for Options {
+impl Default for ObjectMethodOptions {
     fn default() -> Self {
         Self {
             req_id: Uuid::new_v4().to_string(),
@@ -55,12 +61,6 @@ impl Default for Options {
             sql_only: false,
             no_cache: true,
         }
-    }
-}
-
-impl Options {
-    pub fn new() -> Options {
-        Options::default()
     }
 }
 
@@ -84,18 +84,8 @@ impl Methods {
     }
 }
 
-fn null_to_zero<'de, D>(deserializer: D) -> Result<u64, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let opt = Option::deserialize(deserializer)?;
-    match opt {
-        Some(o) => Ok(o),
-        None => Ok(0),
-    }
-}
-
-#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+#[derive(Deserialize, Serialize, Default, PartialEq, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct MantaObjectValue {
     // TODO:
     // all the content_* fields (and defaults) should have skip_deserializing_if type != "directory"
@@ -114,9 +104,9 @@ pub struct MantaObjectValue {
     #[serde(default)]
     pub etag: String,
 
-    //headers: Map???, // TODO:
+    pub headers: Value,
     pub key: String,
-    pub mtime: u64, //TODO Convert to date?
+    pub mtime: u64,
     pub name: String,
 
     #[serde(alias = "objectId", default)]
@@ -128,16 +118,32 @@ pub struct MantaObjectValue {
     #[serde(default)]
     pub sharks: Vec<MantaObjectShark>,
 
-    #[serde(alias = "type")]
-    pub object_type: String, // TODO: represents as a String but is a defacto enum, right?
+    #[serde(alias = "type", rename(serialize = "type"))]
+    pub object_type: String, // TODO: represents as a String but should probably be an enum?
 
     pub vnode: u64,
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+#[derive(Deserialize, Serialize, Default, PartialEq, Debug, Clone)]
 pub struct MantaObjectShark {
     pub datacenter: String,
     pub manta_storage_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PutObjectReturn {
+    etag: String,
+}
+
+fn null_to_zero<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    match opt {
+        Some(o) => Ok(o),
+        None => Ok(0),
+    }
 }
 
 fn decode_object<F>(fm_data: &Value, mut cb: F) -> Result<(), Error>
@@ -194,7 +200,7 @@ where
     Ok(())
 }
 
-fn make_options(options: &Options) -> Value {
+fn make_options(options: &ObjectMethodOptions) -> Value {
     let json_value = json!({
         "req_id": options.req_id,
         "headers": options.headers,
@@ -211,10 +217,7 @@ fn make_options(options: &Options) -> Value {
             ret.insert(String::from("etag"), Value::Null);
         }
         Etag::Specified(s) => {
-            ret.insert(
-                String::from("etag"),
-                serde_json::from_str(s.as_str()).unwrap(),
-            );
+            ret.insert(String::from("etag"), serde_json::to_value(s).unwrap());
         }
     }
 
@@ -226,21 +229,29 @@ pub fn put_object<F>(
     bucket: &str,
     key: &str,
     value: Value,
-    opts: &Options,
+    opts: &ObjectMethodOptions,
     mut object_handler: F,
 ) -> Result<(), Error>
 where
-    F: FnMut(&Value) -> Result<(), Error>,
+    F: FnMut(&str) -> Result<(), Error>,
 {
     let arg = json!([bucket, key, value, make_options(opts)]);
 
     mod_client::send(Methods::Put.method(), arg, stream).and_then(|_| {
         mod_client::receive(stream, |resp| {
-            /*
-             * TODO: deserialize the return value which is:
-             * Array([Object({"etag": String()})])
-             */
-            object_handler(&resp.data.d)
+            let arr: Vec<PutObjectReturn> =
+                serde_json::from_value(resp.data.d.clone())?;
+            if arr.len() != 1 {
+                return Err(Error::new(
+                    ErrorKind::Other,
+                    format!(
+                        "Expected response to be a \
+                         single element Array, got: {:?}",
+                        arr
+                    ),
+                ));
+            }
+            object_handler(arr[0].etag.as_str())
         })
     })?;
 

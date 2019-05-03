@@ -1,3 +1,7 @@
+/*
+ * Copyright 2019 Joyent, Inc.
+ */
+
 use rust_fast::client as mod_client;
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
@@ -8,6 +12,9 @@ use uuid::Uuid;
 /*
  * === Buckets ===
  */
+
+// Options that are properties of the bucket itself.  Not the rpc method options for bucket
+// manipulation.
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct BucketOptions {
     #[serde(default)]
@@ -24,7 +31,7 @@ pub struct BucketOptions {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct BucketIntermediate {
     index: String,
-    mtime: String, // TODO: format as date
+    mtime: String,
     name: String,
     options: String,
     post: String,
@@ -55,12 +62,17 @@ impl Methods {
             Methods::Create => String::from("createBucket"),
         }
     }
+}
 
-    fn opts(&self) -> Value {
-        match *self {
-            Methods::List | Methods::Get | Methods::Create => {
-                make_bucket_options()
-            }
+#[derive(Clone, Debug, Serialize)]
+pub struct BucketMethodOptions {
+    pub req_id: String, // UUID as string,
+}
+
+impl Default for BucketMethodOptions {
+    fn default() -> Self {
+        Self {
+            req_id: Uuid::new_v4().to_string(),
         }
     }
 }
@@ -90,25 +102,12 @@ where
     })
 }
 
-/*
- * TODO:
- * Eventually we want to allow callers to pass their own options and this function should
- * handle that merging.
- */
-fn make_bucket_options() -> Value {
-    json!({
-        "req_id": Uuid::new_v4().to_string()
-    })
-}
-
 pub fn create_bucket(
     stream: &mut TcpStream,
     name: &str,
     config: Value,
-    // TODO: opts: &str,
+    opts: BucketMethodOptions,
 ) -> Result<(), Error> {
-    // TODO: caller should add req_id when we allow options to be passed in
-    let opts = make_bucket_options();
     let arg = json!([name, config, opts]);
 
     // TODO: ideally we'd try to get the bucket first, and IFF that fails create it.
@@ -125,13 +124,13 @@ pub fn create_bucket(
 pub fn get_list_buckets<F>(
     stream: &mut TcpStream,
     name: &str,
+    opts: BucketMethodOptions,
     method: Methods,
     mut bucket_handler: F,
 ) -> Result<(), Error>
 where
     F: FnMut(&Bucket) -> Result<(), Error>, //FnOnce?
 {
-    let opts = method.opts();
     let mut arg = json!([opts]);
 
     match method {
@@ -153,6 +152,9 @@ where
     Ok(())
 }
 
+/*
+ * ======== Tests
+ */
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,5 +1,10 @@
+/*
+ * Copyright 2019 Joyent, Inc.
+ */
+
 #[macro_use]
 extern crate serde_json;
+use moray::buckets::BucketMethodOptions;
 use moray::client::MorayClient;
 use moray::objects::{self, Etag};
 use std::io::{Error, ErrorKind};
@@ -7,14 +12,16 @@ use std::io::{Error, ErrorKind};
 fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
     let port: u16 = 2021;
+
     let bucket_name = "rust_test_bucket";
-    let mut opts = objects::Options::new();
+    let mut opts = objects::ObjectMethodOptions::default();
+    let bucket_opts = BucketMethodOptions::default();
     let mut new_etag = String::from("");
 
     let mut mclient = MorayClient::from_parts(ip_arr, port)?;
 
     println!("===confirming bucket exists===");
-    match mclient.get_bucket(bucket_name, |b| {
+    match mclient.get_bucket(bucket_name, bucket_opts, |b| {
         dbg!(b);
         Ok(())
     }) {
@@ -38,8 +45,7 @@ fn main() -> Result<(), Error> {
         &opts,
         |o| {
             println!("Put object with undefined etag returns:\n {:?}\n", &o);
-            let ret_obj = o[0].as_object().unwrap();
-            new_etag = serde_json::to_string(&ret_obj["etag"]).unwrap();
+            new_etag = o.to_string();
             Ok(())
         },
     )?;
