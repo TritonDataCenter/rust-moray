@@ -38,13 +38,18 @@ impl MorayClient {
         }
     }
 
-    pub fn list_buckets<F>(&mut self, bucket_handler: F) -> Result<(), Error>
+    pub fn list_buckets<F>(
+        &mut self,
+        opts: buckets::BucketMethodOptions,
+        bucket_handler: F,
+    ) -> Result<(), Error>
     where
         F: FnMut(&buckets::Bucket) -> Result<(), Error>,
     {
         buckets::get_list_buckets(
             &mut self.stream,
             "",
+            opts,
             buckets::Methods::List,
             bucket_handler,
         )?;
@@ -54,6 +59,7 @@ impl MorayClient {
     pub fn get_bucket<F>(
         &mut self,
         name: &str,
+        opts: buckets::BucketMethodOptions,
         bucket_handler: F,
     ) -> Result<(), Error>
     where
@@ -62,6 +68,7 @@ impl MorayClient {
         buckets::get_list_buckets(
             &mut self.stream,
             name,
+            opts,
             buckets::Methods::Get,
             bucket_handler,
         )?;
@@ -113,11 +120,11 @@ impl MorayClient {
         bucket: &str,
         key: &str,
         value: Value,
-        opts: &objects::Options,
+        opts: &objects::ObjectMethodOptions,
         object_handler: F,
     ) -> Result<(), Error>
     where
-        F: FnMut(&Value) -> Result<(), Error>,
+        F: FnMut(&str) -> Result<(), Error>,
     {
         objects::put_object(
             &mut self.stream,
@@ -133,8 +140,9 @@ impl MorayClient {
         &mut self,
         name: &str,
         config: Value,
+        opts: buckets::BucketMethodOptions,
     ) -> Result<(), Error> {
-        buckets::create_bucket(&mut self.stream, name, config)
+        buckets::create_bucket(&mut self.stream, name, config, opts)
     }
 
     /*

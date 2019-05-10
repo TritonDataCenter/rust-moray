@@ -12,19 +12,10 @@ fn main() -> Result<(), Error> {
     let port: u16 = 2021;
 
     let mut key: String = "".to_string();
-    let mut checksum = "".to_string();
+    let mut checksum: String = "".to_string();
+    let mut oid: String = String::new();
 
     let mut mclient = MorayClient::from_parts(ip_arr, port).unwrap();
-
-    mclient.find_objects(
-        "manta",
-        "(objectId=561e119d-b056-67e8-e078-f541494de358)",
-        "{}",
-        |o| {
-            dbg!(&o);
-            Ok(())
-        },
-    )?;
 
     mclient.find_objects(
         "manta",
@@ -37,6 +28,7 @@ fn main() -> Result<(), Error> {
                     if key.len() == 0 {
                         key = mantaobj.key.clone();
                         checksum = mantaobj.value.content_md5.clone();
+                        oid = mantaobj.value.object_id.clone();
                     }
                     ()
                 }
@@ -50,6 +42,22 @@ fn main() -> Result<(), Error> {
     let getopts = format!("{}{}", reqid, other_opts);
 
     mclient.get_object("manta", key.as_str(), getopts.as_str(), |o| {
+        match o {
+            MorayObject::Manta(mantaobj) => {
+                println!("Found checksum:     {}", &mantaobj.value.content_md5);
+                println!("Expected checksum:  {}", &checksum);
+                assert_eq!(mantaobj.value.content_md5, checksum);
+                ()
+            }
+        }
+        Ok(())
+    })?;
+
+    let mut count = 0;
+    let filter = format!("(objectId={})", oid);
+    mclient.find_objects("manta", filter.as_str(), "{}", |o| {
+        count += 1;
+        assert_eq!(count, 1, "should only be one result");
         match o {
             MorayObject::Manta(mantaobj) => {
                 println!("Found checksum:     {}", &mantaobj.value.content_md5);

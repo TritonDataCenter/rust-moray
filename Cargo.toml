@@ -1,7 +1,7 @@
 [package]
 name = "moray"
 version = "0.1.0"
-authors = ["Rui Loura <rjloura@gmail.com>"]
+authors = ["Rui Loura <rui@joyent.com>"]
 edition = "2018"
 
 [dependencies]
