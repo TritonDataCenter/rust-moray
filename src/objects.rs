@@ -40,18 +40,22 @@ pub enum Etag {
     Specified(String),
 }
 
-// TODO: include _value: String = serde_json::to_string(value)
+// TODO:
+// * include _value: String = serde_json::to_string(value)
+// * add offset,
+// * add sort
 #[derive(Debug)]
-pub struct ObjectMethodOptions {
+pub struct MethodOptions {
     pub req_id: String, // UUID as String
     pub etag: Etag,
     pub headers: Value,
     pub no_count: bool,
     pub sql_only: bool,
     pub no_cache: bool,
+    limit: Option<u64>,
 }
 
-impl Default for ObjectMethodOptions {
+impl Default for MethodOptions {
     fn default() -> Self {
         Self {
             req_id: Uuid::new_v4().to_string(),
@@ -60,7 +64,14 @@ impl Default for ObjectMethodOptions {
             no_count: false,
             sql_only: false,
             no_cache: true,
+            limit: None,
         }
+    }
+}
+
+impl MethodOptions {
+    pub fn set_limit(&mut self, limit: u64) {
+        self.limit = Some(limit);
     }
 }
 
@@ -176,37 +187,13 @@ where
     result
 }
 
-pub fn get_find_objects<F>(
-    stream: &mut TcpStream,
-    bucket: &str,
-    key_filter: &str,
-    opts: &str, // TODO: Should take Value
-    method: Methods,
-    mut object_handler: F,
-) -> Result<(), Error>
-where
-    F: FnMut(&MorayObject) -> Result<(), Error>,
-{
-    let options: Value = serde_json::from_str(opts).unwrap();
-    let arg = json!([bucket, key_filter, options]);
-    let obj_method = method.method();
-
-    mod_client::send(String::from(obj_method), arg, stream).and_then(|_| {
-        mod_client::receive(stream, |resp| {
-            decode_object(&resp.data.d, |obj| object_handler(&obj))
-        })
-    })?;
-
-    Ok(())
-}
-
-fn make_options(options: &ObjectMethodOptions) -> Value {
+// TODO: make method specific
+fn make_options(options: &MethodOptions) -> Value {
     let json_value = json!({
         "req_id": options.req_id,
         "headers": options.headers,
         "no_count": options.no_count,
         "sql_only": options.sql_only,
-        "noCache": options.no_cache,
     });
 
     let mut ret = json_value.as_object().unwrap().clone();
@@ -221,7 +208,37 @@ fn make_options(options: &ObjectMethodOptions) -> Value {
         }
     }
 
+    match &options.limit {
+        None => (),
+        Some(lim) => {
+            ret.insert(String::from("limit"), serde_json::to_value(lim).unwrap());
+        }
+    };
+
     serde_json::to_value(ret).unwrap()
+}
+
+pub fn get_find_objects<F>(
+    stream: &mut TcpStream,
+    bucket: &str,
+    key_filter: &str,
+    opts: &MethodOptions,
+    method: Methods,
+    mut object_handler: F,
+) -> Result<(), Error>
+where
+    F: FnMut(&MorayObject) -> Result<(), Error>,
+{
+    let obj_method = method.method();
+    let arg = json!([bucket, key_filter, make_options(opts)]);
+
+    mod_client::send(String::from(obj_method), arg, stream).and_then(|_| {
+        mod_client::receive(stream, |resp| {
+            decode_object(&resp.data.d, |obj| object_handler(&obj))
+        })
+    })?;
+
+    Ok(())
 }
 
 pub fn put_object<F>(
@@ -229,7 +246,7 @@ pub fn put_object<F>(
     bucket: &str,
     key: &str,
     value: Value,
-    opts: &ObjectMethodOptions,
+    opts: &MethodOptions,
     mut object_handler: F,
 ) -> Result<(), Error>
 where

@@ -40,7 +40,7 @@ impl MorayClient {
 
     pub fn list_buckets<F>(
         &mut self,
-        opts: buckets::BucketMethodOptions,
+        opts: buckets::MethodOptions,
         bucket_handler: F,
     ) -> Result<(), Error>
     where
@@ -59,7 +59,7 @@ impl MorayClient {
     pub fn get_bucket<F>(
         &mut self,
         name: &str,
-        opts: buckets::BucketMethodOptions,
+        opts: buckets::MethodOptions,
         bucket_handler: F,
     ) -> Result<(), Error>
     where
@@ -79,7 +79,7 @@ impl MorayClient {
         &mut self,
         bucket: &str,
         key: &str,
-        opts: &str,
+        opts: &objects::MethodOptions,
         object_handler: F,
     ) -> Result<(), Error>
     where
@@ -99,7 +99,7 @@ impl MorayClient {
         &mut self,
         bucket: &str,
         filter: &str,
-        opts: &str,
+        opts: &objects::MethodOptions,
         object_handler: F,
     ) -> Result<(), Error>
     where
@@ -120,7 +120,7 @@ impl MorayClient {
         bucket: &str,
         key: &str,
         value: Value,
-        opts: &objects::ObjectMethodOptions,
+        opts: &objects::MethodOptions,
         object_handler: F,
     ) -> Result<(), Error>
     where
@@ -140,7 +140,7 @@ impl MorayClient {
         &mut self,
         name: &str,
         config: Value,
-        opts: buckets::BucketMethodOptions,
+        opts: buckets::MethodOptions,
     ) -> Result<(), Error> {
         buckets::create_bucket(&mut self.stream, name, config, opts)
     }

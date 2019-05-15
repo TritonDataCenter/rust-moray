@@ -4,7 +4,7 @@
 
 #[macro_use]
 extern crate serde_json;
-use moray::buckets::BucketMethodOptions;
+use moray::buckets;
 use moray::client::MorayClient;
 use moray::objects::{self, Etag};
 use std::io::{Error, ErrorKind};
@@ -14,8 +14,8 @@ fn main() -> Result<(), Error> {
     let port: u16 = 2021;
 
     let bucket_name = "rust_test_bucket";
-    let mut opts = objects::ObjectMethodOptions::default();
-    let bucket_opts = BucketMethodOptions::default();
+    let mut opts = objects::MethodOptions::default();
+    let bucket_opts = buckets::MethodOptions::default();
     let mut new_etag = String::from("");
 
     let mut mclient = MorayClient::from_parts(ip_arr, port)?;

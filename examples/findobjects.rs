@@ -3,9 +3,8 @@
  */
 
 use moray::client::MorayClient;
-use moray::objects::MorayObject;
+use moray::objects::{self, MorayObject};
 use std::io::Error;
-use uuid::Uuid;
 
 fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
@@ -14,13 +13,15 @@ fn main() -> Result<(), Error> {
     let mut key: String = "".to_string();
     let mut checksum: String = "".to_string();
     let mut oid: String = String::new();
+    let mut opts = objects::MethodOptions::default();
 
     let mut mclient = MorayClient::from_parts(ip_arr, port).unwrap();
 
+    opts.set_limit(10);
     mclient.find_objects(
         "manta",
         "(type=object)",
-        r#"{"limit": 10}"#,
+        &opts,
         |o| {
             match o {
                 MorayObject::Manta(mantaobj) => {
@@ -37,11 +38,9 @@ fn main() -> Result<(), Error> {
         },
     )?;
 
-    let reqid = format!("{{ \"req_id\": \"{}\", ", Uuid::new_v4());
-    let other_opts = r#" "headers": {}, "no_count": false, "sql_only": false, "noCache": true}"#;
-    let getopts = format!("{}{}", reqid, other_opts);
+    let opts = objects::MethodOptions::default();
 
-    mclient.get_object("manta", key.as_str(), getopts.as_str(), |o| {
+    mclient.get_object("manta", key.as_str(), &opts, |o| {
         match o {
             MorayObject::Manta(mantaobj) => {
                 println!("Found checksum:     {}", &mantaobj.value.content_md5);
@@ -55,7 +54,7 @@ fn main() -> Result<(), Error> {
 
     let mut count = 0;
     let filter = format!("(objectId={})", oid);
-    mclient.find_objects("manta", filter.as_str(), "{}", |o| {
+    mclient.find_objects("manta", filter.as_str(), &opts, |o| {
         count += 1;
         assert_eq!(count, 1, "should only be one result");
         match o {

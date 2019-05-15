@@ -65,11 +65,11 @@ impl Methods {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct BucketMethodOptions {
+pub struct MethodOptions {
     pub req_id: String, // UUID as string,
 }
 
-impl Default for BucketMethodOptions {
+impl Default for MethodOptions {
     fn default() -> Self {
         Self {
             req_id: Uuid::new_v4().to_string(),
@@ -106,7 +106,7 @@ pub fn create_bucket(
     stream: &mut TcpStream,
     name: &str,
     config: Value,
-    opts: BucketMethodOptions,
+    opts: MethodOptions,
 ) -> Result<(), Error> {
     let arg = json!([name, config, opts]);
 
@@ -124,7 +124,7 @@ pub fn create_bucket(
 pub fn get_list_buckets<F>(
     stream: &mut TcpStream,
     name: &str,
-    opts: BucketMethodOptions,
+    opts: MethodOptions,
     method: Methods,
     mut bucket_handler: F,
 ) -> Result<(), Error>
