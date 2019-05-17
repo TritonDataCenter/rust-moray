@@ -9,7 +9,10 @@ use std::io::Error;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-fn client_fromstr(addr: &str, opts: buckets::MethodOptions) -> Result<(), Error> {
+fn client_fromstr(
+    addr: &str,
+    opts: buckets::MethodOptions,
+) -> Result<(), Error> {
     let mut mclient = MorayClient::from_str(addr).unwrap();
     mclient.list_buckets(opts, |b| {
         dbg!(&b);

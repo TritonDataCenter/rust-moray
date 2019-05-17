@@ -10,14 +10,8 @@ use std::net::TcpStream;
 use uuid::Uuid;
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
-#[serde(tag = "bucket")]
-pub enum MorayObject {
-    #[serde(alias = "manta")]
-    Manta(MantaObject),
-}
-
-#[derive(Deserialize, Default, Serialize, PartialEq, Debug, Clone)]
-pub struct MantaObject {
+pub struct MorayObject {
+    pub bucket: String,
     #[serde(default, deserialize_with = "null_to_zero")]
     pub _count: u64,
     pub _etag: String,
@@ -25,7 +19,7 @@ pub struct MantaObject {
     pub _mtime: u64,
     // TODO: _txn_snap:
     pub key: String,
-    pub value: MantaObjectValue, // TODO: Could possibly make this an enum with a serde tag as well
+    pub value: Value, // We don't know what the bucket schema is so we leave that up to the caller
 }
 
 ///
@@ -73,6 +67,10 @@ impl MethodOptions {
     pub fn set_limit(&mut self, limit: u64) {
         self.limit = Some(limit);
     }
+
+    pub fn unset_limit(&mut self) {
+        self.limit = None;
+    }
 }
 
 /*
@@ -93,52 +91,6 @@ impl Methods {
             Methods::Put => String::from("putObject"),
         }
     }
-}
-
-#[derive(Deserialize, Serialize, Default, PartialEq, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct MantaObjectValue {
-    // TODO:
-    // all the content_* fields (and defaults) should have skip_deserializing_if type != "directory"
-    #[serde(alias = "contentLength", default)]
-    pub content_length: u64,
-
-    #[serde(alias = "contentMD5", default)]
-    pub content_md5: String,
-
-    #[serde(alias = "contentType", default)]
-    pub content_type: String,
-
-    pub creator: String,
-    pub dirname: String,
-
-    #[serde(default)]
-    pub etag: String,
-
-    pub headers: Value,
-    pub key: String,
-    pub mtime: u64,
-    pub name: String,
-
-    #[serde(alias = "objectId", default)]
-    pub object_id: String,
-
-    pub owner: String,
-    pub roles: Vec<String>, // TODO: double check this is a String
-
-    #[serde(default)]
-    pub sharks: Vec<MantaObjectShark>,
-
-    #[serde(alias = "type", rename(serialize = "type"))]
-    pub object_type: String, // TODO: represents as a String but should probably be an enum?
-
-    pub vnode: u64,
-}
-
-#[derive(Deserialize, Serialize, Default, PartialEq, Debug, Clone)]
-pub struct MantaObjectShark {
-    pub datacenter: String,
-    pub manta_storage_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -211,7 +163,10 @@ fn make_options(options: &MethodOptions) -> Value {
     match &options.limit {
         None => (),
         Some(lim) => {
-            ret.insert(String::from("limit"), serde_json::to_value(lim).unwrap());
+            ret.insert(
+                String::from("limit"),
+                serde_json::to_value(lim).unwrap(),
+            );
         }
     };
 
@@ -261,9 +216,7 @@ where
             if arr.len() != 1 {
                 return Err(Error::new(
                     ErrorKind::Other,
-                    format!(
-                        "Expected response to be a \
-                         single element Array, got: {:?}",
+                    format!("Expected response to be a single element Array, got: {:?}",
                         arr
                     ),
                 ));

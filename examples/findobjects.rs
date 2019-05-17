@@ -2,9 +2,10 @@
  * Copyright 2019 Joyent, Inc.
  */
 
+use libmanta::moray as manta;
 use moray::client::MorayClient;
-use moray::objects::{self, MorayObject};
-use std::io::Error;
+use moray::objects;
+use std::io::{Error, ErrorKind};
 
 fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
@@ -18,36 +19,49 @@ fn main() -> Result<(), Error> {
     let mut mclient = MorayClient::from_parts(ip_arr, port).unwrap();
 
     opts.set_limit(10);
-    mclient.find_objects(
-        "manta",
-        "(type=object)",
-        &opts,
-        |o| {
-            match o {
-                MorayObject::Manta(mantaobj) => {
-                    dbg!(&mantaobj.value.name);
-                    if key.len() == 0 {
-                        key = mantaobj.key.clone();
-                        checksum = mantaobj.value.content_md5.clone();
-                        oid = mantaobj.value.object_id.clone();
-                    }
-                    ()
+    mclient.find_objects("manta", "(type=object)", &opts, |o| {
+        if o.bucket != "manta" {
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Unknown bucket type {}", &o.bucket),
+            ));
+        }
+        let manta_obj: manta::ObjectType =
+            serde_json::from_value(o.value.clone()).unwrap();
+        match manta_obj {
+            manta::ObjectType::Object(mobj) => {
+                dbg!(&mobj.name);
+                if key.len() == 0 {
+                    key = mobj.key.clone();
+                    checksum = mobj.content_md5.clone();
+                    oid = mobj.object_id.clone();
                 }
-            }
-            Ok(())
-        },
-    )?;
-
-    let opts = objects::MethodOptions::default();
-
-    mclient.get_object("manta", key.as_str(), &opts, |o| {
-        match o {
-            MorayObject::Manta(mantaobj) => {
-                println!("Found checksum:     {}", &mantaobj.value.content_md5);
-                println!("Expected checksum:  {}", &checksum);
-                assert_eq!(mantaobj.value.content_md5, checksum);
                 ()
             }
+            _ => (),
+        }
+        Ok(())
+    })?;
+
+    let mut opts = objects::MethodOptions::default();
+
+    mclient.get_object("manta", key.as_str(), &opts, |o| {
+        if o.bucket != "manta" {
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Unknown bucket type {}", &o.bucket),
+            ));
+        }
+        let manta_obj: manta::ObjectType =
+            serde_json::from_value(o.value.clone()).unwrap();
+        match manta_obj {
+            manta::ObjectType::Object(mobj) => {
+                println!("Found checksum:     {}", &mobj.content_md5);
+                println!("Expected checksum:  {}", &checksum);
+                assert_eq!(mobj.content_md5, checksum);
+                ()
+            }
+            _ => (),
         }
         Ok(())
     })?;
@@ -57,11 +71,44 @@ fn main() -> Result<(), Error> {
     mclient.find_objects("manta", filter.as_str(), &opts, |o| {
         count += 1;
         assert_eq!(count, 1, "should only be one result");
-        match o {
-            MorayObject::Manta(mantaobj) => {
-                println!("Found checksum:     {}", &mantaobj.value.content_md5);
+        if o.bucket != "manta" {
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Unknown bucket type {}", &o.bucket),
+            ));
+        }
+        let manta_obj: manta::ObjectType =
+            serde_json::from_value(o.value.clone()).unwrap();
+        match manta_obj {
+            manta::ObjectType::Object(mobj) => {
+                println!("Found checksum:     {}", &mobj.content_md5);
                 println!("Expected checksum:  {}", &checksum);
-                assert_eq!(mantaobj.value.content_md5, checksum);
+                assert_eq!(mobj.content_md5, checksum);
+                ()
+            }
+            _ => (),
+        }
+        Ok(())
+    })?;
+
+    opts.set_limit(10);
+    mclient.find_objects("manta", "(type=directory)", &opts, |o| {
+        assert_eq!(count, 1, "should only be one result");
+        if o.bucket != "manta" {
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Unknown bucket type {}", &o.bucket),
+            ));
+        }
+        let manta_obj: manta::ObjectType =
+            serde_json::from_value(o.value.clone()).unwrap();
+        match manta_obj {
+            manta::ObjectType::Object(_) => {
+                assert!(false, "Found object in directory query");
+                ()
+            }
+            manta::ObjectType::Directory(mdir) => {
+                println!("Found directory: {}", mdir.key);
                 ()
             }
         }
