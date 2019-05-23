@@ -2,7 +2,7 @@
  * Copyright 2019 Joyent, Inc.
  */
 
-use rust_fast::client as mod_client;
+use rust_fast::client as fast_client;
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
 use std::io::{Error, ErrorKind};
@@ -110,13 +110,16 @@ pub fn create_bucket(
 ) -> Result<(), Error> {
     let arg = json!([name, config, opts]);
 
-    // TODO: ideally we'd try to get the bucket first, and IFF that fails create it.
-    mod_client::send(Methods::Create.method(), arg, stream).and_then(|_| {
-        mod_client::receive(stream, |resp| {
-            dbg!(resp); // createBucket returns empty response
-            Ok(())
-        })
-    })?;
+    // TODO: ideally we'd try to get the bucket first, and if that fails then
+    // create it.
+    fast_client::send(Methods::Create.method(), arg, stream).and_then(
+        |_| {
+            fast_client::receive(stream, |resp| {
+                dbg!(resp); // createBucket returns empty response
+                Ok(())
+            })
+        },
+    )?;
 
     Ok(())
 }
@@ -143,8 +146,8 @@ where
         _ => return Err(Error::new(ErrorKind::Other, "Unsupported Method")),
     }
 
-    mod_client::send(method.method(), arg, stream).and_then(|_| {
-        mod_client::receive(stream, |resp| {
+    fast_client::send(method.method(), arg, stream).and_then(|_| {
+        fast_client::receive(stream, |resp| {
             decode_bucket(&resp.data.d, |b| bucket_handler(&b))
         })
     })?;

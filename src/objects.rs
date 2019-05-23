@@ -2,7 +2,7 @@
  * Copyright 2019 Joyent, Inc.
  */
 
-use rust_fast::client as mod_client;
+use rust_fast::client as fast_client;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::io::{Error, ErrorKind};
@@ -187,11 +187,13 @@ where
     let obj_method = method.method();
     let arg = json!([bucket, key_filter, make_options(opts)]);
 
-    mod_client::send(String::from(obj_method), arg, stream).and_then(|_| {
-        mod_client::receive(stream, |resp| {
-            decode_object(&resp.data.d, |obj| object_handler(&obj))
-        })
-    })?;
+    fast_client::send(String::from(obj_method), arg, stream).and_then(
+        |_| {
+            fast_client::receive(stream, |resp| {
+                decode_object(&resp.data.d, |obj| object_handler(&obj))
+            })
+        },
+    )?;
 
     Ok(())
 }
@@ -209,8 +211,8 @@ where
 {
     let arg = json!([bucket, key, value, make_options(opts)]);
 
-    mod_client::send(Methods::Put.method(), arg, stream).and_then(|_| {
-        mod_client::receive(stream, |resp| {
+    fast_client::send(Methods::Put.method(), arg, stream).and_then(|_| {
+        fast_client::receive(stream, |resp| {
             let arr: Vec<PutObjectReturn> =
                 serde_json::from_value(resp.data.d.clone())?;
             if arr.len() != 1 {

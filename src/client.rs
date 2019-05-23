@@ -3,13 +3,13 @@
  */
 
 /* TODO: rust-cueball */
-use rust_fast::client as mod_client;
 use serde_json::{self, Value};
 use std::io::{Error, ErrorKind};
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::str::FromStr;
 
 use super::buckets;
+use super::meta;
 use super::objects;
 
 #[derive(Debug)]
@@ -145,35 +145,18 @@ impl MorayClient {
         buckets::create_bucket(&mut self.stream, name, config, opts)
     }
 
-    /*
-     * TODO:
-     *      * 'opts' should be a defined struct
-     *      * Put this in a 'meta' module
-     */
-    pub fn sql<F>(
+    pub fn sql<F, V>(
         &mut self,
         stmt: &str,
         vals: Vec<&str>,
-        opts: &str,
-        mut query_handler: F,
+        opts: V,
+        query_handler: F,
     ) -> Result<(), Error>
     where
         F: FnMut(&Value) -> Result<(), Error>,
+        V: Into<Value>,
     {
-        let options: Value = serde_json::from_str(opts).unwrap();
-        let values: Value = json!(vals);
-        let args: Value = json!([stmt, values, options]);
-
-        match mod_client::send(String::from("sql"), args, &mut self.stream)
-            .and_then(|_| {
-                mod_client::receive(&mut self.stream, |resp| {
-                    dbg!(&resp.data.d);
-                    query_handler(&resp.data.d)
-                })
-            }) {
-            Ok(_s) => Ok(()),
-            Err(e) => Err(e),
-        }
+        meta::sql(&mut self.stream, stmt, vals, opts, query_handler)
     }
 }
 
