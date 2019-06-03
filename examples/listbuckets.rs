@@ -43,6 +43,36 @@ fn client_fromparts(
     })
 }
 
+fn client_reconnect(
+    addr: SocketAddr,
+    opts: buckets::MethodOptions,
+) -> Result<(), Error> {
+    let mut mclient = MorayClient::new(addr).unwrap();
+    let mut count: u64 = 0;
+    mclient.list_buckets(opts.clone(), |_| {
+        count += 1;
+        Ok(())
+    })?;
+
+    println!("Found {} buckets before reconnect", count);
+    println!("Reconnecting");
+
+    mclient = mclient.reconnect()?;
+
+    let mut after_count = 0;
+    match mclient.list_buckets(opts.clone(), |_| {
+        after_count += 1;
+        Ok(())
+    }) {
+        Ok(()) => {
+            println!("Found {} buckets after reconnect", after_count);
+            assert_eq!(count, after_count, "match counts after reconnect");
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
 fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
     let port: u16 = 2021;
@@ -57,9 +87,13 @@ fn main() -> Result<(), Error> {
 
     println!("MorayClient SocketAddr");
     let sockaddr = SocketAddr::from_str(addr.as_str()).unwrap();
-    client_sockaddr(sockaddr, opts.clone())?;
+    client_sockaddr(sockaddr.clone(), opts.clone())?;
 
     println!("MorayClient from_parts");
     client_fromparts(ip_arr, port, opts.clone())?;
+
+    println!("MorayClient reconnect");
+    client_reconnect(sockaddr, opts)?;
+    println!("MorayClient reconnect success");
     Ok(())
 }

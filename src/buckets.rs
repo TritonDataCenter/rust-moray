@@ -167,7 +167,7 @@ mod tests {
     use serde_json::Map;
     use std::iter;
 
-    fn random_string<G: Gen>(g: &mut G, len: usize) -> String {
+    pub fn random_string<G: Gen>(g: &mut G, len: usize) -> String {
         iter::repeat(())
             .map(|()| g.sample(Alphanumeric))
             .take(len)
@@ -196,7 +196,7 @@ mod tests {
             let post_len = g.gen::<u8>() as usize;
             let pre_len = g.gen::<u8>() as usize;
 
-            // TODO: futher randomize index
+            // TODO: further randomize index
             let index = json!({
                 random_string(g, index_len): random_string(g, index_len),
                 random_string(g, index_len): random_string(g, index_len),

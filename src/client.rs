@@ -4,7 +4,7 @@
 
 /* TODO: rust-cueball */
 use serde_json::{self, Value};
-use std::io::{Error, ErrorKind};
+use std::io::Error;
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::str::FromStr;
 
@@ -15,15 +15,20 @@ use super::objects;
 #[derive(Debug)]
 pub struct MorayClient {
     stream: TcpStream,
+    reconnect: bool,
 }
 
 ///
 /// MorayClient
 ///
 impl MorayClient {
+    // TODO: Allow for setting timeouts
     pub fn new<S: Into<SocketAddr>>(address: S) -> Result<MorayClient, Error> {
         match TcpStream::connect(address.into()) {
-            Ok(st) => Ok(MorayClient { stream: st }),
+            Ok(st) => Ok(MorayClient {
+                stream: st,
+                reconnect: true,
+            }),
             Err(e) => Err(e),
         }
     }
@@ -32,10 +37,13 @@ impl MorayClient {
         ip: I,
         port: u16,
     ) -> Result<MorayClient, Error> {
-        match TcpStream::connect(SocketAddr::new(ip.into(), port)) {
-            Ok(st) => Ok(MorayClient { stream: st }),
-            Err(e) => Err(e),
-        }
+        Self::new(SocketAddr::new(ip.into(), port))
+    }
+
+    pub fn reconnect(self) -> Result<MorayClient, Error> {
+        let sock = self.stream.peer_addr()?;
+        drop(self);
+        Self::new(sock)
     }
 
     pub fn list_buckets<F>(
@@ -164,10 +172,7 @@ impl FromStr for MorayClient {
     type Err = Error;
     fn from_str(s: &str) -> Result<MorayClient, Error> {
         let addr = SocketAddr::from_str(s).expect("Error parsing address");
-        match TcpStream::connect(addr) {
-            Ok(st) => Ok(MorayClient { stream: st }),
-            Err(e) => Err(Error::new(ErrorKind::NotConnected, e)),
-        }
+        Self::new(addr)
     }
 }
 

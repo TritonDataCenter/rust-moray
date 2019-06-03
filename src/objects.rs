@@ -13,13 +13,13 @@ use uuid::Uuid;
 pub struct MorayObject {
     pub bucket: String,
     #[serde(default, deserialize_with = "null_to_zero")]
-    pub _count: u64,
+    pub _count: u64, // TODO: This should probably be an Option<u64>
     pub _etag: String,
     pub _id: u64,
     pub _mtime: u64,
     // TODO: _txn_snap:
     pub key: String,
-    pub value: Value, // We don't know what the bucket schema is so we leave that up to the caller
+    pub value: Value, // Bucket schema dependent
 }
 
 ///
