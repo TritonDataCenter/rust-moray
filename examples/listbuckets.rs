@@ -2,14 +2,17 @@
  * Copyright 2019 Joyent, Inc.
  */
 
-use moray::buckets::BucketMethodOptions;
+use moray::buckets;
 use moray::client::MorayClient;
 
 use std::io::Error;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-fn client_fromstr(addr: &str, opts: BucketMethodOptions) -> Result<(), Error> {
+fn client_fromstr(
+    addr: &str,
+    opts: buckets::MethodOptions,
+) -> Result<(), Error> {
     let mut mclient = MorayClient::from_str(addr).unwrap();
     mclient.list_buckets(opts, |b| {
         dbg!(&b);
@@ -19,7 +22,7 @@ fn client_fromstr(addr: &str, opts: BucketMethodOptions) -> Result<(), Error> {
 
 fn client_sockaddr(
     sockaddr: SocketAddr,
-    opts: BucketMethodOptions,
+    opts: buckets::MethodOptions,
 ) -> Result<(), Error> {
     let mut mclient = MorayClient::new(sockaddr).unwrap();
     mclient.list_buckets(opts, |b| {
@@ -31,7 +34,7 @@ fn client_sockaddr(
 fn client_fromparts(
     ip: [u8; 4],
     port: u16,
-    opts: BucketMethodOptions,
+    opts: buckets::MethodOptions,
 ) -> Result<(), Error> {
     let mut mclient = MorayClient::from_parts(ip, port).unwrap();
     mclient.list_buckets(opts, |b| {
@@ -48,7 +51,7 @@ fn main() -> Result<(), Error> {
     let ip = i.join(".");
     let addr = format!("{}:{}", ip, port.to_string().as_str());
 
-    let opts = BucketMethodOptions::default();
+    let opts = buckets::MethodOptions::default();
     println!("MorayClient from_str");
     client_fromstr(addr.as_str(), opts.clone())?;
 

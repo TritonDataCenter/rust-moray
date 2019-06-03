@@ -7,4 +7,5 @@ extern crate serde_json;
 
 pub mod buckets;
 pub mod client;
+pub mod meta;
 pub mod objects;

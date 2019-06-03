@@ -3,7 +3,7 @@
  */
 
 use moray::client::MorayClient;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::io::Error;
 
 fn query_handler(resp: &Value) -> Result<(), Error> {
@@ -11,9 +11,23 @@ fn query_handler(resp: &Value) -> Result<(), Error> {
     Ok(())
 }
 
-fn query_client_fromparts(ip: [u8; 4], port: u16) -> Result<(), Error> {
+fn query_client_string_opts(ip: [u8; 4], port: u16) -> Result<(), Error> {
     let mut mclient = MorayClient::from_parts(ip, port).unwrap();
-    mclient.sql("select * from manta limit 10", vec![], "{}", query_handler)
+
+    // The sql interface does not take 'limit' in opts
+    let query = "SELECT * FROM manta limit 10";
+
+    mclient.sql(query, vec![], r#"{}"#, query_handler)
+}
+
+fn query_client_map_opts(ip: [u8; 4], port: u16) -> Result<(), Error> {
+    let mut mclient = MorayClient::from_parts(ip, port).unwrap();
+
+    // The sql interface does not take 'limit' in opts
+    let query = "SELECT * FROM manta limit 10";
+    let map = Map::new();
+
+    mclient.sql(query, vec![], map, query_handler)
 }
 
 fn main() -> Result<(), Error> {
@@ -21,6 +35,7 @@ fn main() -> Result<(), Error> {
     let port: u16 = 2021;
 
     println!("Testing SQL method");
-    query_client_fromparts(ip_arr, port)?;
+    query_client_string_opts(ip_arr, port)?;
+    query_client_map_opts(ip_arr, port)?;
     Ok(())
 }
