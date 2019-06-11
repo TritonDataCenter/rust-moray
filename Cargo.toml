@@ -5,13 +5,16 @@ authors = ["Rui Loura <rui@joyent.com>"]
 edition = "2018"
 
 [dependencies]
-rust_fast = { git = "https://github.com/joyent/rust-fast", rev="547a754390a8c59fada3ddfff9d55a3ea77387d6" }
+# This branch is pinned util the following are all resolved:
+# - MANTA-4287
+# - MANTA-4288
+# - joyent/rust-fast/issues/12
+rust_fast = { git = "https://github.com/joyent/rust-fast", branch="response_handler_errors" }
 libmanta = { git = "https://github.com/joyent/rust-libmanta" }
 serde = { version = "1.0.89", features = ["derive"] }
 serde_json = "1.0.39"
 uuid = {version = "0.7.4", features = ["v4"] }
 
 [dev-dependencies]
-quickcheck = "0.8.0"
 rand = "0.6.4"
-
+quickcheck = "0.8.0"
