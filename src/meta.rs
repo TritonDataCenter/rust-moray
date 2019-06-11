@@ -34,16 +34,15 @@ where
     F: FnMut(&Value) -> Result<(), Error>,
     V: Into<Value>,
 {
-    let opts_tmp = opts.into();
-    let options: Value;
+    let opts_tmp: Value = opts.into();
 
-    if opts_tmp.is_string() {
+    let options = if opts_tmp.is_string() {
         let s: String = serde_json::from_value(opts_tmp).unwrap();
         let v: Value = serde_json::from_str(s.as_str()).unwrap();
-        options = v;
+        v
     } else {
-        options = opts_tmp;
-    }
+        opts_tmp
+    };
 
     let values: Value = json!(vals);
     let args: Value = json!([stmt, values, options]);

@@ -119,24 +119,25 @@ where
         let resp_data: Vec<Value> =
             serde_json::from_value(fm_data.clone()).unwrap();
 
-        return resp_data.iter().fold(result, |_r, object_data| {
+        resp_data.iter().fold(result, |_r, object_data| {
             serde_json::from_value::<MorayObject>(object_data.clone())
                 .map_err(|e| {
                     // TODO: this should propagate error up
                     eprintln!("ERROR: {}", &e);
                     Error::new(ErrorKind::Other, e)
                 })
+                //.and_then(|obj| cb(obj))
                 .and_then(|obj| cb(obj))
-        });
+        })
+    } else {
+        assert_eq!(fm_data.is_object(), true);
+
+        serde_json::from_value::<MorayObject>(fm_data.clone())
+            .map_err(|e| Error::new(ErrorKind::Other, e))
+            .and_then(cb)?;
+
+        result
     }
-
-    assert_eq!(fm_data.is_object(), true);
-
-    serde_json::from_value::<MorayObject>(fm_data.clone())
-        .map_err(|e| Error::new(ErrorKind::Other, e))
-        .and_then(|obj| cb(obj))?;
-
-    result
 }
 
 // TODO: make method specific
@@ -187,13 +188,11 @@ where
     let obj_method = method.method();
     let arg = json!([bucket, key_filter, make_options(opts)]);
 
-    fast_client::send(String::from(obj_method), arg, stream).and_then(
-        |_| {
-            fast_client::receive(stream, |resp| {
-                decode_object(&resp.data.d, |obj| object_handler(&obj))
-            })
-        },
-    )?;
+    fast_client::send(obj_method, arg, stream).and_then(|_| {
+        fast_client::receive(stream, |resp| {
+            decode_object(&resp.data.d, |obj| object_handler(&obj))
+        })
+    })?;
 
     Ok(())
 }
