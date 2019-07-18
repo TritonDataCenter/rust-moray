@@ -8,13 +8,23 @@ extern crate serde_json;
 use moray::buckets;
 use moray::client::MorayClient;
 use std::io::Error;
+use std::sync::Mutex;
+
+use slog::{o, Logger, Drain};
 
 fn main() -> Result<(), Error> {
-    let ip_arr: [u8; 4] = [10, 77, 77, 9];
+    let ip_arr: [u8; 4] = [10, 77, 77, 103];
     let port: u16 = 2021;
     let opts = buckets::MethodOptions::default();
 
-    let mut mclient = MorayClient::from_parts(ip_arr, port)?;
+
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+    let log = Logger::root(
+        Mutex::new(slog_term::FullFormat::new(plain).build()).fuse(),
+        o!("build-id" => "0.1.0"),
+    );
+
+    let mut mclient = MorayClient::from_parts(ip_arr, port, log, None)?;
     let bucket_config = json!({
         "index": {
             "aNumber": {

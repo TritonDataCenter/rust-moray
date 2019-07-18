@@ -5,10 +5,14 @@
 use libmanta::moray as manta;
 use moray::client::MorayClient;
 use moray::objects;
+
+
 use std::io::{Error, ErrorKind};
+use slog::{o, Logger, Drain};
+use std::sync::Mutex;
 
 fn main() -> Result<(), Error> {
-    let ip_arr: [u8; 4] = [10, 77, 77, 9];
+    let ip_arr: [u8; 4] = [10, 77, 77, 103];
     let port: u16 = 2021;
 
     let mut key: String = "".to_string();
@@ -16,7 +20,12 @@ fn main() -> Result<(), Error> {
     let mut oid: String = String::new();
     let mut opts = objects::MethodOptions::default();
 
-    let mut mclient = MorayClient::from_parts(ip_arr, port).unwrap();
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+    let log = Logger::root(
+        Mutex::new(slog_term::FullFormat::new(plain).build()).fuse(),
+        o!("build-id" => "0.1.0"),
+    );
+    let mut mclient = MorayClient::from_parts(ip_arr, port, log, None)?;
 
     opts.set_limit(10);
     mclient.find_objects("manta", "(type=object)", &opts, |o| {
@@ -72,10 +81,11 @@ fn main() -> Result<(), Error> {
         count += 1;
         assert_eq!(count, 1, "should only be one result");
         if o.bucket != "manta" {
-            return Err(Error::new(
+            let e = Error::new(
                 ErrorKind::Other,
                 format!("Unknown bucket type {}", &o.bucket),
-            ));
+            );
+            return Err(e)
         }
         let manta_obj: manta::ObjectType =
             serde_json::from_value(o.value.clone()).unwrap();
@@ -95,10 +105,8 @@ fn main() -> Result<(), Error> {
     mclient.find_objects("manta", "(type=directory)", &opts, |o| {
         assert_eq!(count, 1, "should only be one result");
         if o.bucket != "manta" {
-            return Err(Error::new(
-                ErrorKind::Other,
-                format!("Unknown bucket type {}", &o.bucket),
-            ));
+            return Err(Error::new(ErrorKind::Other,
+                format!("Unknown bucket type {}", &o.bucket)));
         }
         let manta_obj: manta::ObjectType =
             serde_json::from_value(o.value.clone()).unwrap();

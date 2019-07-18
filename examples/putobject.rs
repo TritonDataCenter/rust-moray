@@ -4,10 +4,15 @@
 
 #[macro_use]
 extern crate serde_json;
+
 use moray::buckets;
 use moray::client::MorayClient;
 use moray::objects::{self, Etag};
 use std::io::{Error, ErrorKind};
+use slog::{o, Logger, Drain};
+use std::sync::Mutex;
+
+
 
 fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
@@ -18,7 +23,14 @@ fn main() -> Result<(), Error> {
     let bucket_opts = buckets::MethodOptions::default();
     let mut new_etag = String::from("");
 
-    let mut mclient = MorayClient::from_parts(ip_arr, port)?;
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+    let log = Logger::root(
+        Mutex::new(slog_term::FullFormat::new(plain).build()).fuse(),
+        o!("build-id" => "0.1.0"),
+    );
+
+
+    let mut mclient = MorayClient::from_parts(ip_arr, port, log, None)?;
 
     println!("===confirming bucket exists===");
     match mclient.get_bucket(bucket_name, bucket_opts, |b| {
@@ -31,7 +43,8 @@ fn main() -> Result<(), Error> {
                  Run the createbucket example to do so.",
                 bucket_name
             );
-            return Err(Error::new(ErrorKind::Other, e));
+            let e = Error::new(ErrorKind::Other, e);
+            return Err(e)
         }
         Ok(()) => (),
     }

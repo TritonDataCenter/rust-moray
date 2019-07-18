@@ -2,48 +2,81 @@
  * Copyright 2019 Joyent, Inc.
  */
 
-/* TODO: rust-cueball */
+use cueball::backend::Backend;
+use cueball::connection_pool::types::ConnectionPoolOptions;
+use cueball::connection_pool::ConnectionPool;
+use cueball_static_resolver::StaticIpResolver;
+use cueball_tcp_stream_connection::TcpStreamWrapper;
+
+use std::ops::DerefMut;
+use slog::Logger;
+
+use std::str::FromStr;
+
 use serde_json::{self, Value};
 use std::io::Error;
-use std::net::{IpAddr, SocketAddr, TcpStream};
-use std::str::FromStr;
+
+use std::net::{IpAddr, SocketAddr};
 
 use super::buckets;
 use super::meta;
 use super::objects;
 
-#[derive(Debug)]
-pub struct MorayClient {
-    stream: TcpStream,
-    reconnect: bool,
+
+pub struct MorayClient
+{
+    connection_pool:
+        ConnectionPool<TcpStreamWrapper, StaticIpResolver, fn(&Backend)
+            -> TcpStreamWrapper>
 }
 
 ///
 /// MorayClient
 ///
 impl MorayClient {
-    // TODO: Allow for setting timeouts
-    pub fn new<S: Into<SocketAddr>>(address: S) -> Result<MorayClient, Error> {
-        match TcpStream::connect(address.into()) {
-            Ok(st) => Ok(MorayClient {
-                stream: st,
-                reconnect: true,
-            }),
-            Err(e) => Err(e),
-        }
+
+    pub fn new(
+            address: SocketAddr,
+            log: Logger,
+            opts: Option<ConnectionPoolOptions>
+        ) -> Result<MorayClient, Error> {
+
+        let primary_backend = (address.ip(), address.port());
+        let resolver = StaticIpResolver::new(vec![primary_backend]);
+
+        let pool_opts = match opts {
+            None => {
+                ConnectionPoolOptions {
+                    maximum: 5,
+                    claim_timeout: Some(5000),
+                    log: log,
+                    rebalancer_action_delay: None,
+                }
+            },
+            Some(opts) => opts
+        };
+
+        let pool =
+            ConnectionPool::<TcpStreamWrapper, StaticIpResolver, fn(&Backend)
+                -> TcpStreamWrapper>::new(
+                    pool_opts,
+                    resolver,
+                    TcpStreamWrapper::new,
+        );
+
+
+        Ok(MorayClient {
+            connection_pool: pool,
+        })
     }
 
     pub fn from_parts<I: Into<IpAddr>>(
         ip: I,
         port: u16,
+        log: Logger,
+        opts: Option<ConnectionPoolOptions>
     ) -> Result<MorayClient, Error> {
-        Self::new(SocketAddr::new(ip.into(), port))
-    }
-
-    pub fn reconnect(self) -> Result<MorayClient, Error> {
-        let sock = self.stream.peer_addr()?;
-        drop(self);
-        Self::new(sock)
+        Self::new(SocketAddr::new(ip.into(), port), log, opts)
     }
 
     pub fn list_buckets<F>(
@@ -54,14 +87,15 @@ impl MorayClient {
     where
         F: FnMut(&buckets::Bucket) -> Result<(), Error>,
     {
+        let mut conn = self.connection_pool.claim().unwrap();
+
         buckets::get_list_buckets(
-            &mut self.stream,
+            &mut (*conn).deref_mut(),
             "",
             opts,
             buckets::Methods::List,
             bucket_handler,
-        )?;
-        Ok(())
+        )
     }
 
     pub fn get_bucket<F>(
@@ -73,14 +107,15 @@ impl MorayClient {
     where
         F: FnMut(&buckets::Bucket) -> Result<(), Error>,
     {
+        let mut conn = self.connection_pool.claim().unwrap();
+
         buckets::get_list_buckets(
-            &mut self.stream,
+            &mut (*conn).deref_mut(),
             name,
             opts,
             buckets::Methods::Get,
             bucket_handler,
-        )?;
-        Ok(())
+        )
     }
 
     pub fn get_object<F>(
@@ -93,8 +128,10 @@ impl MorayClient {
     where
         F: FnMut(&objects::MorayObject) -> Result<(), Error>,
     {
+        let mut conn = self.connection_pool.claim().unwrap();
+
         objects::get_find_objects(
-            &mut self.stream,
+            &mut (*conn).deref_mut(),
             bucket,
             key,
             opts,
@@ -113,8 +150,9 @@ impl MorayClient {
     where
         F: FnMut(&objects::MorayObject) -> Result<(), Error>,
     {
+        let mut conn = self.connection_pool.claim().unwrap();
         objects::get_find_objects(
-            &mut self.stream,
+            &mut (*conn).deref_mut(),
             bucket,
             filter,
             opts,
@@ -134,8 +172,9 @@ impl MorayClient {
     where
         F: FnMut(&str) -> Result<(), Error>,
     {
+        let mut conn = self.connection_pool.claim().unwrap();
         objects::put_object(
-            &mut self.stream,
+            &mut (*conn).deref_mut(),
             bucket,
             key,
             value,
@@ -150,7 +189,11 @@ impl MorayClient {
         config: Value,
         opts: buckets::MethodOptions,
     ) -> Result<(), Error> {
-        buckets::create_bucket(&mut self.stream, name, config, opts)
+        buckets::create_bucket(
+            &mut self.connection_pool.claim().unwrap().deref_mut(),
+            name,
+            config,
+            opts)
     }
 
     pub fn sql<F, V>(
@@ -164,15 +207,21 @@ impl MorayClient {
         F: FnMut(&Value) -> Result<(), Error>,
         V: Into<Value>,
     {
-        meta::sql(&mut self.stream, stmt, vals, opts, query_handler)
+        meta::sql(&mut self.connection_pool.claim().unwrap().deref_mut(),
+        stmt,
+        vals,
+        opts,
+        query_handler)
     }
-}
 
-impl FromStr for MorayClient {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<MorayClient, Error> {
-        let addr = SocketAddr::from_str(s).expect("Error parsing address");
-        Self::new(addr)
+    pub fn from_str(
+            s: &str,
+            log: Logger,
+            opts: Option<ConnectionPoolOptions>
+        ) -> Result<MorayClient, Error> {
+
+            let addr = SocketAddr::from_str(s).expect("Error parsing address");
+            Self::new(addr, log, opts)
     }
 }
 
