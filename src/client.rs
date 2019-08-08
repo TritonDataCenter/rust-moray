@@ -51,6 +51,8 @@ impl MorayClient {
                     claim_timeout: Some(5000),
                     log: log,
                     rebalancer_action_delay: None,
+		    decoherence_interval: None,
+                    decoherence_delay: None,
                 }
             },
             Some(opts) => opts
