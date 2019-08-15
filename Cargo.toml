@@ -6,9 +6,9 @@ authors = ["Rui Loura <rui@joyent.com>",
 edition = "2018"
 
 [dependencies]
-cueball = { git = "https://github.com/joyent/rust-cueball" }
-cueball-static-resolver = { git = "https://github.com/joyent/rust-cueball-static-resolver" }
-cueball-tcp-stream-connection = { git = "https://github.com/joyent/rust-cueball-tcp-stream-connection" }
+cueball = { git = "https://github.com/joyent/rust-cueball", tag="v0.1.0" }
+cueball-static-resolver = { git = "https://github.com/joyent/rust-cueball-static-resolver", tag="v0.1.0" }
+cueball-tcp-stream-connection = { git = "https://github.com/joyent/rust-cueball-tcp-stream-connection", tag="v0.1.0" }
 
 # This branch is pinned util the following are all resolved:
 # - MANTA-4287
@@ -23,6 +23,8 @@ slog = { version = "2.4.1", features = [ "max_level_trace" ] }
 slog-bunyan = { git = "https://github.com/kellymclaughlin/bunyan", branch = "build-on-smartos" }
 
 uuid = {version = "0.7.4", features = ["v4"] }
+trust-dns-resolver = "0.11.1"
+
 
 [dev-dependencies]
 slog-term = "2.4.0"

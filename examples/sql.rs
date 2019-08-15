@@ -3,18 +3,20 @@
  */
 use moray::client::MorayClient;
 use serde_json::{Map, Value};
+use slog::{o, Drain, Logger};
 use std::io::Error;
-use slog::{o, Logger, Drain};
 use std::sync::Mutex;
-
 
 fn query_handler(resp: &Value) -> Result<(), Error> {
     dbg!(&resp);
     Ok(())
 }
 
-fn query_client_string_opts(ip: [u8; 4], port: u16, log: Logger) -> Result<(), Error> {
-
+fn query_client_string_opts(
+    ip: [u8; 4],
+    port: u16,
+    log: Logger,
+) -> Result<(), Error> {
     let mut mclient = MorayClient::from_parts(ip, port, log, None)?;
 
     // The sql interface does not take 'limit' in opts
@@ -23,8 +25,11 @@ fn query_client_string_opts(ip: [u8; 4], port: u16, log: Logger) -> Result<(), E
     mclient.sql(query, vec![], r#"{}"#, query_handler)
 }
 
-fn query_client_map_opts(ip: [u8; 4], port: u16, log: Logger) -> Result<(), Error> {
-
+fn query_client_map_opts(
+    ip: [u8; 4],
+    port: u16,
+    log: Logger,
+) -> Result<(), Error> {
     let mut mclient = MorayClient::from_parts(ip, port, log, None)?;
 
     // The sql interface does not take 'limit' in opts

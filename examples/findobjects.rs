@@ -6,9 +6,8 @@ use libmanta::moray as manta;
 use moray::client::MorayClient;
 use moray::objects;
 
-
+use slog::{o, Drain, Logger};
 use std::io::{Error, ErrorKind};
-use slog::{o, Logger, Drain};
 use std::sync::Mutex;
 
 fn main() -> Result<(), Error> {
@@ -85,7 +84,7 @@ fn main() -> Result<(), Error> {
                 ErrorKind::Other,
                 format!("Unknown bucket type {}", &o.bucket),
             );
-            return Err(e)
+            return Err(e);
         }
         let manta_obj: manta::ObjectType =
             serde_json::from_value(o.value.clone()).unwrap();
@@ -105,8 +104,10 @@ fn main() -> Result<(), Error> {
     mclient.find_objects("manta", "(type=directory)", &opts, |o| {
         assert_eq!(count, 1, "should only be one result");
         if o.bucket != "manta" {
-            return Err(Error::new(ErrorKind::Other,
-                format!("Unknown bucket type {}", &o.bucket)));
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("Unknown bucket type {}", &o.bucket),
+            ));
         }
         let manta_obj: manta::ObjectType =
             serde_json::from_value(o.value.clone()).unwrap();

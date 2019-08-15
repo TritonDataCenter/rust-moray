@@ -8,8 +8,8 @@ use cueball::connection_pool::ConnectionPool;
 use cueball_static_resolver::StaticIpResolver;
 use cueball_tcp_stream_connection::TcpStreamWrapper;
 
-use std::ops::DerefMut;
 use slog::Logger;
+use std::ops::DerefMut;
 
 use std::str::FromStr;
 
@@ -22,50 +22,42 @@ use super::buckets;
 use super::meta;
 use super::objects;
 
-
-pub struct MorayClient
-{
-    connection_pool:
-        ConnectionPool<TcpStreamWrapper, StaticIpResolver, fn(&Backend)
-            -> TcpStreamWrapper>
+pub struct MorayClient {
+    connection_pool: ConnectionPool<
+        TcpStreamWrapper,
+        StaticIpResolver,
+        fn(&Backend) -> TcpStreamWrapper,
+    >,
 }
 
 ///
 /// MorayClient
 ///
 impl MorayClient {
-
     pub fn new(
-            address: SocketAddr,
-            log: Logger,
-            opts: Option<ConnectionPoolOptions>
-        ) -> Result<MorayClient, Error> {
-
+        address: SocketAddr,
+        log: Logger,
+        opts: Option<ConnectionPoolOptions>,
+    ) -> Result<MorayClient, Error> {
         let primary_backend = (address.ip(), address.port());
         let resolver = StaticIpResolver::new(vec![primary_backend]);
 
         let pool_opts = match opts {
-            None => {
-                ConnectionPoolOptions {
-                    maximum: 5,
-                    claim_timeout: Some(5000),
-                    log: log,
-                    rebalancer_action_delay: None,
-                    decoherence_interval: None,
-                    decoherence_delay: None,
-                }
+            None => ConnectionPoolOptions {
+                max_connections: Some(5),
+                claim_timeout: Some(5000),
+                log: Some(log),
+                rebalancer_action_delay: None,
+                decoherence_interval: None,
             },
-            Some(opts) => opts
+            Some(opts) => opts,
         };
 
-        let pool =
-            ConnectionPool::<TcpStreamWrapper, StaticIpResolver, fn(&Backend)
-                -> TcpStreamWrapper>::new(
-                    pool_opts,
-                    resolver,
-                    TcpStreamWrapper::new,
-        );
-
+        let pool = ConnectionPool::<
+            TcpStreamWrapper,
+            StaticIpResolver,
+            fn(&Backend) -> TcpStreamWrapper,
+        >::new(pool_opts, resolver, TcpStreamWrapper::new);
 
         Ok(MorayClient {
             connection_pool: pool,
@@ -76,7 +68,7 @@ impl MorayClient {
         ip: I,
         port: u16,
         log: Logger,
-        opts: Option<ConnectionPoolOptions>
+        opts: Option<ConnectionPoolOptions>,
     ) -> Result<MorayClient, Error> {
         Self::new(SocketAddr::new(ip.into(), port), log, opts)
     }
@@ -195,7 +187,8 @@ impl MorayClient {
             &mut self.connection_pool.claim().unwrap().deref_mut(),
             name,
             config,
-            opts)
+            opts,
+        )
     }
 
     pub fn sql<F, V>(
@@ -209,21 +202,22 @@ impl MorayClient {
         F: FnMut(&Value) -> Result<(), Error>,
         V: Into<Value>,
     {
-        meta::sql(&mut self.connection_pool.claim().unwrap().deref_mut(),
-        stmt,
-        vals,
-        opts,
-        query_handler)
+        meta::sql(
+            &mut self.connection_pool.claim().unwrap().deref_mut(),
+            stmt,
+            vals,
+            opts,
+            query_handler,
+        )
     }
 
     pub fn from_str(
-            s: &str,
-            log: Logger,
-            opts: Option<ConnectionPoolOptions>
-        ) -> Result<MorayClient, Error> {
-
-            let addr = SocketAddr::from_str(s).expect("Error parsing address");
-            Self::new(addr, log, opts)
+        s: &str,
+        log: Logger,
+        opts: Option<ConnectionPoolOptions>,
+    ) -> Result<MorayClient, Error> {
+        let addr = SocketAddr::from_str(s).expect("Error parsing address");
+        Self::new(addr, log, opts)
     }
 }
 

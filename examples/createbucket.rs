@@ -10,13 +10,12 @@ use moray::client::MorayClient;
 use std::io::Error;
 use std::sync::Mutex;
 
-use slog::{o, Logger, Drain};
+use slog::{o, Drain, Logger};
 
 fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 103];
     let port: u16 = 2021;
     let opts = buckets::MethodOptions::default();
-
 
     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
     let log = Logger::root(

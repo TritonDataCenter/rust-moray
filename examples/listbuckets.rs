@@ -1,22 +1,22 @@
 /*
  * Copyright 2019 Joyent, Inc.
  */
+
 use moray::buckets;
 use moray::client::MorayClient;
 
-
-use std::io::Error;
+use slog::{o, Drain, Logger};
+use std::io::{Error, ErrorKind};
+use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use slog::{o, Logger, Drain};
 use std::sync::Mutex;
-
+use trust_dns_resolver::Resolver;
 
 fn client_fromstr(
     addr: &str,
     opts: buckets::MethodOptions,
 ) -> Result<(), Error> {
-
     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
     let log = Logger::root(
         Mutex::new(slog_term::FullFormat::new(plain).build()).fuse(),
@@ -56,50 +56,28 @@ fn client_fromparts(
     })
 }
 
-fn client_reconnect(
-    addr: SocketAddr,
-    opts: buckets::MethodOptions,
-    log: Logger,
-) -> Result<(), Error> {
-    let mut mclient = MorayClient::new(addr, log, None).unwrap();
-    let mut count: u64 = 0;
-    mclient.list_buckets(opts.clone(), |_| {
-        count += 1;
-        Ok(())
-    })?;
-
-    println!("Found {} buckets before reconnect", count);
-    println!("Reconnecting");
-
-    let mut after_count = 0;
-    match mclient.list_buckets(opts.clone(), |_| {
-        after_count += 1;
-        Ok(())
-    }) {
-        Ok(()) => {
-            println!("Found {} buckets after reconnect", after_count);
-            assert_eq!(count, after_count, "match counts after reconnect");
-            Ok(())
-        }
-        Err(e) => Err(e),
-    }
-}
-
 fn main() -> Result<(), Error> {
-
     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
     let log = Logger::root(
         Mutex::new(slog_term::FullFormat::new(plain).build()).fuse(),
         o!("build-id" => "0.1.0"),
     );
 
+    let resolver = Resolver::from_system_conf().unwrap();
+    let response = resolver.lookup_ip("1.moray.east.joyent.us")?;
+    let ipaddr: Vec<IpAddr> = response.iter().collect();
+    dbg!(&ipaddr);
+    let ipaddr = ipaddr[0];
 
-    let ip_arr: [u8; 4] = [10, 77, 77, 103];
+    let ip_arr = match ipaddr {
+        IpAddr::V4(ip) => ip.octets(),
+        _ => {
+            return Err(Error::new(ErrorKind::Other, "Need IPv4"));
+        }
+    };
+
     let port: u16 = 2021;
-
-    let i: Vec<String> = ip_arr.iter().map(|o| o.to_string()).collect();
-    let ip = i.join(".");
-    let addr = format!("{}:{}", ip, port.to_string().as_str());
+    let addr = format!("{}:{}", ipaddr.to_string(), port.to_string().as_str());
 
     let opts = buckets::MethodOptions::default();
     println!("MorayClient from_str");
@@ -112,8 +90,5 @@ fn main() -> Result<(), Error> {
     println!("MorayClient from_parts");
     client_fromparts(ip_arr, port, opts.clone(), log.clone())?;
 
-    println!("MorayClient reconnect");
-    client_reconnect(sockaddr, opts, log.clone())?;
-    println!("MorayClient reconnect success");
     Ok(())
 }

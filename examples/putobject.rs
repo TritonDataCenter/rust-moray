@@ -8,11 +8,9 @@ extern crate serde_json;
 use moray::buckets;
 use moray::client::MorayClient;
 use moray::objects::{self, Etag};
+use slog::{o, Drain, Logger};
 use std::io::{Error, ErrorKind};
-use slog::{o, Logger, Drain};
 use std::sync::Mutex;
-
-
 
 fn main() -> Result<(), Error> {
     let ip_arr: [u8; 4] = [10, 77, 77, 9];
@@ -29,7 +27,6 @@ fn main() -> Result<(), Error> {
         o!("build-id" => "0.1.0"),
     );
 
-
     let mut mclient = MorayClient::from_parts(ip_arr, port, log, None)?;
 
     println!("===confirming bucket exists===");
@@ -44,7 +41,7 @@ fn main() -> Result<(), Error> {
                 bucket_name
             );
             let e = Error::new(ErrorKind::Other, e);
-            return Err(e)
+            return Err(e);
         }
         Ok(()) => (),
     }
