@@ -11,7 +11,7 @@ use std::io::{Error, ErrorKind};
 use std::sync::Mutex;
 
 fn main() -> Result<(), Error> {
-    let ip_arr: [u8; 4] = [10, 77, 77, 103];
+    let ip_arr: [u8; 4] = [10, 77, 77, 9];
     let port: u16 = 2021;
 
     let mut key: String = "".to_string();

@@ -2,7 +2,7 @@
  * Copyright 2019 Joyent, Inc.
  */
 
-use rust_fast::client as fast_client;
+use rust_fast::{client as fast_client, protocol::FastMessageId};
 use serde_json::{self, json, Value};
 use std::io::Error;
 use std::net::TcpStream;
@@ -46,10 +46,12 @@ where
 
     let values: Value = json!(vals);
     let args: Value = json!([stmt, values, options]);
+    let mut msg_id = FastMessageId::new();
 
-    fast_client::send(String::from("sql"), args, stream).and_then(|_| {
-        fast_client::receive(stream, |resp| query_handler(&resp.data.d))
-    })?;
+    fast_client::send(String::from("sql"), args, &mut msg_id, stream)
+        .and_then(|_| {
+            fast_client::receive(stream, |resp| query_handler(&resp.data.d))
+        })?;
 
     Ok(())
 }

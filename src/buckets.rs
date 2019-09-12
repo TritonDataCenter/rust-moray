@@ -2,7 +2,7 @@
  * Copyright 2019 Joyent, Inc.
  */
 
-use rust_fast::client as fast_client;
+use rust_fast::{client as fast_client, protocol::FastMessageId};
 use serde::{Deserialize, Serialize};
 use serde_json::{self, json, Value};
 use std::io::{Error, ErrorKind};
@@ -109,17 +109,17 @@ pub fn create_bucket(
     opts: MethodOptions,
 ) -> Result<(), Error> {
     let arg = json!([name, config, opts]);
+    let mut msg_id = FastMessageId::new();
 
     // TODO: ideally we'd try to get the bucket first, and if that fails then
     // create it.
-    fast_client::send(Methods::Create.method(), arg, stream).and_then(
-        |_| {
+    fast_client::send(Methods::Create.method(), arg, &mut msg_id, stream)
+        .and_then(|_| {
             fast_client::receive(stream, |resp| {
                 dbg!(resp); // createBucket returns empty response
                 Ok(())
             })
-        },
-    )?;
+        })?;
 
     Ok(())
 }
@@ -135,6 +135,7 @@ where
     F: FnMut(&Bucket) -> Result<(), Error>, //FnOnce?
 {
     let mut arg = json!([opts]);
+    let mut msg_id = FastMessageId::new();
 
     match method {
         Methods::Get => {
@@ -146,11 +147,13 @@ where
         _ => return Err(Error::new(ErrorKind::Other, "Unsupported Method")),
     }
 
-    fast_client::send(method.method(), arg, stream).and_then(|_| {
-        fast_client::receive(stream, |resp| {
-            decode_bucket(&resp.data.d, |b| bucket_handler(&b))
-        })
-    })?;
+    fast_client::send(method.method(), arg, &mut msg_id, stream).and_then(
+        |_| {
+            fast_client::receive(stream, |resp| {
+                decode_bucket(&resp.data.d, |b| bucket_handler(&b))
+            })
+        },
+    )?;
 
     Ok(())
 }
