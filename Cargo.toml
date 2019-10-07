@@ -1,6 +1,6 @@
 [package]
 name = "moray"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Rui Loura <rui@joyent.com>",
            "Jon Anderson <jon.andereson@joyent.com"]
 edition = "2018"
@@ -11,7 +11,7 @@ cueball-static-resolver = { git = "https://github.com/joyent/rust-cueball-static
 cueball-tcp-stream-connection = { git = "https://github.com/joyent/rust-cueball-tcp-stream-connection", tag="v0.1.0" }
 
 rust_fast = { git = "https://github.com/joyent/rust-fast", tag="v0.1.0" }
-libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.1.0" }
+libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.2.0" }
 
 serde = { version = "1.0.89", features = ["derive"] }
 serde_json = "1.0.39"
@@ -20,6 +20,12 @@ slog-bunyan = { git = "https://github.com/kellymclaughlin/bunyan", branch = "bui
 
 uuid = {version = "0.7.4", features = ["v4"] }
 trust-dns-resolver = "0.11.1"
+
+# Until certain patches for diesel are checked into a version rust-libmanta will
+# need this patch section, and so will any of it's dependents.
+[patch.crates-io]
+diesel = { git = 'https://github.com/diesel-rs/diesel' }
+diesel_derives = { git = "https://github.com/diesel-rs/diesel" }
 
 
 [dev-dependencies]
