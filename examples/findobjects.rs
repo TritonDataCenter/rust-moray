@@ -34,19 +34,13 @@ fn main() -> Result<(), Error> {
                 format!("Unknown bucket type {}", &o.bucket),
             ));
         }
-        let manta_obj: manta::ObjectType =
-            serde_json::from_value(o.value.clone()).unwrap();
-        match manta_obj {
-            manta::ObjectType::Object(mobj) => {
-                dbg!(&mobj.name);
-                if key.len() == 0 {
-                    key = mobj.key.clone();
-                    checksum = mobj.content_md5.clone();
-                    oid = mobj.object_id.clone();
-                }
-                ()
-            }
-            _ => (),
+        let mobj: manta::MantaObject = serde_json::from_value(o.value.clone()).unwrap();
+        assert_eq!(mobj.obj_type, String::from("object"));
+        dbg!(&mobj.name);
+        if key.len() == 0 {
+            key = mobj.key.clone();
+            checksum = mobj.content_md5.clone();
+            oid = mobj.object_id.clone();
         }
         Ok(())
     })?;
