@@ -11,7 +11,8 @@ cueball-static-resolver = { git = "https://github.com/joyent/rust-cueball-static
 cueball-tcp-stream-connection = { git = "https://github.com/joyent/rust-cueball-tcp-stream-connection", tag="v0.1.0" }
 
 rust_fast = { git = "https://github.com/joyent/rust-fast", tag="v0.1.0" }
-libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.4.0" }
+#libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.4.0" }
+libmanta = { git = "https://github.com/joyent/rust-libmanta", branch = "pg_traits" }
 
 serde = { version = "1.0.89", features = ["derive"] }
 serde_json = "1.0.39"
