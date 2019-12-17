@@ -8,7 +8,7 @@ use cueball::connection_pool::ConnectionPool;
 use cueball_static_resolver::StaticIpResolver;
 use cueball_tcp_stream_connection::TcpStreamWrapper;
 
-use slog::{Logger, error};
+use slog::{Logger, error, info};
 use std::ops::DerefMut;
 
 use std::str::FromStr;
@@ -224,6 +224,7 @@ impl MorayClient {
 
 impl Drop for MorayClient {
     fn drop(&mut self) {
+        info!(self.log, "MORAY CLIENT: Dropping");
         if let Err(e) = self.connection_pool.stop() {
             error!(self.log, "Error stopping connection pool: {:?}", e);
         }
