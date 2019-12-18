@@ -8,7 +8,7 @@ use cueball::connection_pool::ConnectionPool;
 use cueball_static_resolver::StaticIpResolver;
 use cueball_tcp_stream_connection::TcpStreamWrapper;
 
-use slog::{Logger, error, info};
+use slog::Logger;
 use std::ops::DerefMut;
 
 use std::str::FromStr;
@@ -23,7 +23,6 @@ use super::meta;
 use super::objects;
 
 pub struct MorayClient {
-    log: Logger,
     connection_pool: ConnectionPool<
         TcpStreamWrapper,
         StaticIpResolver,
@@ -61,7 +60,6 @@ impl MorayClient {
 
         Ok(MorayClient {
             connection_pool: pool,
-            log,
         })
     }
 
@@ -219,15 +217,6 @@ impl MorayClient {
     ) -> Result<MorayClient, Error> {
         let addr = SocketAddr::from_str(s).expect("Error parsing address");
         Self::new(addr, log, opts)
-    }
-}
-
-impl Drop for MorayClient {
-    fn drop(&mut self) {
-        info!(self.log, "MORAY CLIENT: Dropping");
-        if let Err(e) = self.connection_pool.stop() {
-            error!(self.log, "Error stopping connection pool: {:?}", e);
-        }
     }
 }
 
