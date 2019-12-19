@@ -34,7 +34,8 @@ fn main() -> Result<(), Error> {
                 format!("Unknown bucket type {}", &o.bucket),
             ));
         }
-        let mobj: manta::MantaObject = serde_json::from_value(o.value.clone()).unwrap();
+        let mobj: manta::MantaObject =
+            serde_json::from_value(o.value.clone()).unwrap();
         assert_eq!(mobj.obj_type, String::from("object"));
         dbg!(&mobj.name);
         if key.len() == 0 {
