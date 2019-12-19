@@ -46,7 +46,7 @@ impl MorayClient {
             None => ConnectionPoolOptions {
                 max_connections: Some(5),
                 claim_timeout: Some(5000),
-                log: Some(log.clone()),
+                log: Some(log),
                 rebalancer_action_delay: None,
                 decoherence_interval: None,
             },
