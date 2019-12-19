@@ -17,7 +17,7 @@ pub struct MorayObject {
     pub _etag: String,
     pub _id: u64,
     pub _mtime: u64,
-    // TODO: _txn_snap:
+    pub _txn_snap: Option<u64>,
     pub key: String,
     pub value: Value, // Bucket schema dependent
 }

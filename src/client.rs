@@ -38,7 +38,8 @@ impl MorayClient {
         address: SocketAddr,
         log: Logger,
         opts: Option<ConnectionPoolOptions>,
-    ) -> Result<MorayClient, Error> { let primary_backend = (address.ip(), address.port());
+    ) -> Result<MorayClient, Error> {
+        let primary_backend = (address.ip(), address.port());
         let resolver = StaticIpResolver::new(vec![primary_backend]);
 
         let pool_opts = match opts {
