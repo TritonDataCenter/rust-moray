@@ -36,3 +36,4 @@ quickcheck = "0.8.0"
 [features]
 default = []
 postgres = ["libmanta/postgres"]
+sqlite = ["libmanta/sqlite"]
