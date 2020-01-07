@@ -47,8 +47,9 @@ impl MorayClient {
                 max_connections: Some(5),
                 claim_timeout: Some(5000),
                 log: Some(log),
-                rebalancer_action_delay: None,
-                decoherence_interval: None,
+                rebalancer_action_delay: None, // Default 100ms
+                decoherence_interval: None,    // Default 300s
+                connection_check_interval: None, // Default 30s
             },
             Some(opts) => opts,
         };
