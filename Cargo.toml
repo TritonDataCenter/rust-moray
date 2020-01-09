@@ -1,6 +1,6 @@
 [package]
 name = "moray"
-version = "0.10.0"
+version = "0.9.1"
 authors = ["Rui Loura <rui@joyent.com>",
            "Jon Anderson <jon.andereson@joyent.com"]
 edition = "2018"
