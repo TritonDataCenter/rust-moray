@@ -6,9 +6,9 @@ authors = ["Rui Loura <rui@joyent.com>",
 edition = "2018"
 
 [dependencies]
-cueball = { git = "https://github.com/joyent/rust-cueball"}
-cueball-static-resolver = { git = "https://github.com/joyent/rust-cueball"}
-cueball-tcp-stream-connection = { git = "https://github.com/joyent/rust-cueball"}
+cueball = "0.3.0"
+cueball-static-resolver = "0.3.0"
+cueball-tcp-stream-connection = "0.3.0"
 
 rust_fast = { git = "https://github.com/joyent/rust-fast", tag="v0.1.0" }
 libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.7.0" }
