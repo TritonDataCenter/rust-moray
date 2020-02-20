@@ -20,6 +20,7 @@ slog-bunyan = { git = "https://github.com/kellymclaughlin/bunyan", branch = "bui
 
 uuid = {version = "0.7.4", features = ["v4"] }
 trust-dns-resolver = "0.11.1"
+unicode-normalization = "=0.1.5"
 
 # Until certain patches for diesel are checked into a version rust-libmanta will
 # need this patch section, and so will any of it's dependents.
