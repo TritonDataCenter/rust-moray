@@ -1,6 +1,6 @@
 [package]
 name = "moray"
-version = "0.9.2"
+version = "0.9.3"
 authors = ["Rui Loura <rui@joyent.com>",
            "Jon Anderson <jon.andereson@joyent.com"]
 edition = "2018"
@@ -10,7 +10,7 @@ cueball = "0.3.1"
 cueball-static-resolver = "0.3.0"
 cueball-tcp-stream-connection = "0.3.0"
 
-rust_fast = { git = "https://github.com/joyent/rust-fast", tag="v0.1.0" }
+rust_fast = { git = "https://github.com/joyent/rust-fast", tag="v0.2.0" }
 libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.7.0" }
 
 serde = { version = "1.0.89", features = ["derive"] }
