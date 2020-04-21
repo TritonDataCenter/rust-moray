@@ -3,6 +3,7 @@
  */
 
 use rust_fast::{client as fast_client, protocol::FastMessageId};
+use serde::ser::{SerializeStruct, Serializer};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::io::{Error, ErrorKind};
@@ -27,27 +28,66 @@ pub struct MorayObject {
 /// * Nulled: An object with the same key must not exist
 /// * Specified(String): The object will only be added or overwritten if the
 ///     etag (String) matches the existing value
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub enum Etag {
     Undefined,
     Nulled,
     Specified(String),
 }
 
+impl Etag {
+    fn is_undefined(&self) -> bool {
+        self == &Etag::Undefined
+    }
+}
+
+impl Serialize for Etag {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Etag::Undefined => {
+                panic!(
+                    "Attempt to serialize undefined etag which should be \
+                     skipped"
+                );
+            }
+            Etag::Nulled => serializer.serialize_none(),
+            Etag::Specified(etag) => serializer.serialize_str(etag),
+        }
+    }
+}
+
 // TODO:
 // * include _value: String = serde_json::to_string(value)
 // * add offset,
 // * add sort
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MethodOptions {
     pub req_id: String, // UUID as String
+    #[serde(skip_serializing_if = "Etag::is_undefined")]
     pub etag: Etag,
     pub headers: Value,
     pub no_count: bool,
     pub sql_only: bool,
+    #[serde(rename(serialize = "noCache"))]
     pub no_cache: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     limit: Option<u64>,
 }
+
+/*
+impl Serialize for MethodOptions {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("MethodOptions", )
+
+    }
+}
+*/
 
 impl Default for MethodOptions {
     fn default() -> Self {
@@ -126,7 +166,6 @@ where
                     eprintln!("ERROR: {}", &e);
                     Error::new(ErrorKind::Other, e)
                 })
-                //.and_then(|obj| cb(obj))
                 .and_then(|obj| cb(obj))
         })
     } else {
@@ -138,40 +177,6 @@ where
 
         result
     }
-}
-
-// TODO: make method specific
-fn make_options(options: &MethodOptions) -> Value {
-    let json_value = json!({
-        "req_id": options.req_id,
-        "headers": options.headers,
-        "no_count": options.no_count,
-        "sql_only": options.sql_only,
-    });
-
-    let mut ret = json_value.as_object().unwrap().clone();
-
-    match &options.etag {
-        Etag::Undefined => (),
-        Etag::Nulled => {
-            ret.insert(String::from("etag"), Value::Null);
-        }
-        Etag::Specified(s) => {
-            ret.insert(String::from("etag"), serde_json::to_value(s).unwrap());
-        }
-    }
-
-    match &options.limit {
-        None => (),
-        Some(lim) => {
-            ret.insert(
-                String::from("limit"),
-                serde_json::to_value(lim).unwrap(),
-            );
-        }
-    };
-
-    serde_json::to_value(ret).unwrap()
 }
 
 pub fn get_find_objects<F>(
@@ -186,7 +191,7 @@ where
     F: FnMut(&MorayObject) -> Result<(), Error>,
 {
     let obj_method = method.method();
-    let arg = json!([bucket, key_filter, make_options(opts)]);
+    let arg = json!([bucket, key_filter, opts]);
     let mut msg_id = FastMessageId::new();
 
     fast_client::send(obj_method, arg, &mut msg_id, stream).and_then(|_| {
@@ -209,7 +214,7 @@ pub fn put_object<F>(
 where
     F: FnMut(&str) -> Result<(), Error>,
 {
-    let arg = json!([bucket, key, value, make_options(opts)]);
+    let arg = json!([bucket, key, value, opts]);
     let mut msg_id = FastMessageId::new();
 
     fast_client::send(Methods::Put.method(), arg, &mut msg_id, stream)
@@ -230,4 +235,123 @@ where
     })?;
 
     Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+// This serde macro adds the "operation" field to each variant's structure when
+// it is serialized.
+#[serde(tag = "operation")]
+#[serde(rename_all = "camelCase")]
+pub enum BatchRequest {
+    Put(BatchPutRequest),
+    Update(BatchUpdateRequest),
+    Delete(BatchDeleteRequest),
+    DeleteMany(BatchDeleteManyRequest),
+}
+
+// TODO: impl Default for BatchRequest {} (default to Put)
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchPutRequest {
+    pub bucket: String,
+    pub options: MethodOptions,
+    pub key: String,
+    pub value: Value,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchUpdateRequest {
+    pub bucket: String,
+    pub options: Option<MethodOptions>,
+    pub key: String,
+    pub fields: Value,
+    pub filter: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchDeleteRequest {
+    pub bucket: String,
+    pub options: Option<MethodOptions>,
+    pub key: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchDeleteManyRequest {
+    pub bucket: String,
+    pub options: Option<MethodOptions>,
+    pub filter: String,
+}
+
+pub struct BatchOptions {}
+
+fn batch(
+    stream: &mut TcpStream,
+    requests: Vec<BatchRequest>,
+    opts: &MethodOptions,
+) {
+    let batch_requests =
+        serde_json::to_value(requests).expect("batch requests");
+    let arg = json!([batch_requests, opts]);
+    dbg!(arg);
+    /*
+    let mut msg_id = FastMessageId::new();
+
+    fast_client::send(String::from("batch"), arg, &mut msg_id, stream)
+    */
+}
+
+mod test {
+    use super::*;
+    #[test]
+    fn batch_test() {
+        let mut requests = vec![];
+        let value = json!({
+            "field 1": "value 1",
+            "objectID": "someuuid",
+            "number": 4
+        });
+
+        let mut stream = TcpStream::connect("localhost:8000").unwrap();
+
+        requests.push(BatchRequest::Put(BatchPutRequest {
+            bucket: String::from("foo bucket"),
+            options: MethodOptions::default(),
+            key: String::from("somekey"),
+            value,
+        }));
+
+        requests.push(BatchRequest::DeleteMany(BatchDeleteManyRequest {
+            bucket: String::from("foo bucket"),
+            options: Some(MethodOptions::default()),
+            filter: String::from("(mydelete=filter)"),
+        }));
+
+        let opts = MethodOptions::default();
+        batch(&mut stream, requests, &opts);
+    }
+
+    #[test]
+    fn method_options_test() {
+        let etag_string = String::from("Some Special Etag");
+        let mut options = MethodOptions::default();
+
+        // Check that the default etag is Etag::Undefined, and that we skip
+        // serializing in that case.
+        assert_eq!(options.etag, Etag::Undefined);
+        let serialized = serde_json::to_value(options.clone()).unwrap();
+        assert!(serialized.get("etag").is_none());
+
+        // Etag::Nulled should serialize to Value::Null
+        options.etag = Etag::Nulled;
+        let serialized = serde_json::to_value(options.clone()).unwrap();
+        let null_etag = serialized.get("etag").expect("get Nulled Etag");
+        assert_eq!(*null_etag, Value::Null);
+
+        // Etag::Specified(<String>) should serialize to Value::String(<String>)
+        options.etag = Etag::Specified(etag_string.clone());
+        let serialized = serde_json::to_value(options.clone()).unwrap();
+        let specified_etag =
+            serialized.get("etag").expect("get Specified Etag");
+        assert_eq!(*specified_etag, Value::String(etag_string));
+    }
 }
