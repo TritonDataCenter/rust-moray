@@ -192,6 +192,19 @@ impl MorayClient {
         )
     }
 
+    pub fn batch<F>(
+        &mut self,
+        requests: Vec<objects::BatchRequest>,
+        opts: &objects::MethodOptions,
+        object_handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&str) -> Result<(), Error>,
+    {
+        let mut conn = self.connection_pool.claim().unwrap();
+        objects::batch(&mut (*conn).deref_mut(), requests, opts, object_handler)
+    }
+
     pub fn sql<F, V>(
         &mut self,
         stmt: &str,

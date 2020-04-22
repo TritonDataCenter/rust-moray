@@ -3,7 +3,7 @@
  */
 
 use rust_fast::{client as fast_client, protocol::FastMessageId};
-use serde::ser::{SerializeStruct, Serializer};
+use serde::ser::Serializer;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use std::io::{Error, ErrorKind};
@@ -251,7 +251,7 @@ pub enum BatchRequest {
 
 // TODO: impl Default for BatchRequest {} (default to Put)
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchPutRequest {
     pub bucket: String,
     pub options: MethodOptions,
@@ -259,7 +259,7 @@ pub struct BatchPutRequest {
     pub value: Value,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchUpdateRequest {
     pub bucket: String,
     pub options: Option<MethodOptions>,
@@ -268,36 +268,44 @@ pub struct BatchUpdateRequest {
     pub filter: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchDeleteRequest {
     pub bucket: String,
     pub options: Option<MethodOptions>,
     pub key: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchDeleteManyRequest {
     pub bucket: String,
     pub options: Option<MethodOptions>,
     pub filter: String,
 }
 
-pub struct BatchOptions {}
-
-fn batch(
+pub fn batch<F>(
     stream: &mut TcpStream,
     requests: Vec<BatchRequest>,
     opts: &MethodOptions,
-) {
+    mut object_handler: F,
+) -> Result<(), Error>
+where
+    F: FnMut(&str) -> Result<(), Error>,
+{
     let batch_requests =
         serde_json::to_value(requests).expect("batch requests");
     let arg = json!([batch_requests, opts]);
-    dbg!(arg);
-    /*
+    dbg!(&arg); // XXX testing
     let mut msg_id = FastMessageId::new();
 
     fast_client::send(String::from("batch"), arg, &mut msg_id, stream)
-    */
+        .and_then(|_| {
+            fast_client::receive(stream, |resp| {
+                dbg!(resp);
+                object_handler("return value")
+            })
+        })?;
+
+    Ok(())
 }
 
 mod test {
@@ -313,6 +321,8 @@ mod test {
 
         let mut stream = TcpStream::connect("localhost:8000").unwrap();
 
+        // TODO: spawn thread to listen on localhost:8080
+
         requests.push(BatchRequest::Put(BatchPutRequest {
             bucket: String::from("foo bucket"),
             options: MethodOptions::default(),
@@ -327,7 +337,7 @@ mod test {
         }));
 
         let opts = MethodOptions::default();
-        batch(&mut stream, requests, &opts);
+        batch(&mut stream, requests, &opts, |_| Ok(())).expect("batch");
     }
 
     #[test]
