@@ -75,7 +75,7 @@ fn main() -> Result<(), Error> {
         requests.push(BatchRequest::Put((*req).clone()));
     }
 
-    mclient.batch(requests, &opts, |_| Ok(()))?;
+    mclient.batch(&requests, &opts, |_| Ok(()))?;
 
     println!("============Gets==============");
     for req in put_requests.iter() {

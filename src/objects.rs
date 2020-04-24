@@ -39,6 +39,15 @@ impl Etag {
     fn is_undefined(&self) -> bool {
         self == &Etag::Undefined
     }
+
+    // We can't use "Self" here because enum variants on type aliases are
+    // experimental
+    pub fn specified_value(&self) -> Option<&String> {
+        match self {
+            Etag::Undefined | Etag::Nulled => None,
+            Etag::Specified(s) => Some(s)
+        }
+    }
 }
 
 impl Serialize for Etag {
@@ -136,6 +145,13 @@ impl Methods {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PutObjectReturn {
     etag: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BatchPutReturn {
+    bucket: String,
+    etag: String,
+    key: String,
 }
 
 fn null_to_zero<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -282,26 +298,52 @@ pub struct BatchDeleteManyRequest {
     pub filter: String,
 }
 
+// Returns Err on EtagConflict and does not call the object_handler
 pub fn batch<F>(
     stream: &mut TcpStream,
-    requests: Vec<BatchRequest>,
+    requests: &Vec<BatchRequest>,
     opts: &MethodOptions,
-    mut object_handler: F,
+    mut batch_handler: F,
 ) -> Result<(), Error>
 where
     F: FnMut(&str) -> Result<(), Error>,
 {
     let batch_requests =
-        serde_json::to_value(requests).expect("batch requests");
+        serde_json::to_value(requests.to_owned()).expect("batch requests");
     let arg = json!([batch_requests, opts]);
-    dbg!(&arg); // XXX testing
     let mut msg_id = FastMessageId::new();
 
     fast_client::send(String::from("batch"), arg, &mut msg_id, stream)
         .and_then(|_| {
             fast_client::receive(stream, |resp| {
-                dbg!(resp);
-                object_handler("return value")
+
+                // Expected return value looks like:
+                // resp.data.d:
+                //  [{
+                //      "etags": [
+                //          BucketPutReturn{},
+                //          BucketPutReturn{},
+                //          BucketPutReturn{},
+                //          ...
+                //      ]
+                //  }]
+                // TODO: make this generic.  This only works for put returns
+                let arr: Vec<Value> =
+                    serde_json::from_value(resp.data.d.clone())?;
+                if arr.len() != 1 {
+                    return Err(Error::new(
+                        ErrorKind::Other,
+                        format!("Expected response to be a single element Array, got: {:?}",
+                                arr
+                        ),
+                    ));
+                }
+
+                let etags: Vec<BatchPutReturn> = serde_json::from_value(
+                    arr[0]["etags"].clone())?;
+
+                batch_handler(&serde_json::to_string(&etags)?)
+
             })
         })?;
 
@@ -337,7 +379,7 @@ mod test {
         }));
 
         let opts = MethodOptions::default();
-        batch(&mut stream, requests, &opts, |_| Ok(())).expect("batch");
+        batch(&mut stream, &requests, &opts, |_| Ok(())).expect("batch");
     }
 
     #[test]
