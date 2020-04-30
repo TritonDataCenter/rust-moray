@@ -45,7 +45,7 @@ impl Etag {
     pub fn specified_value(&self) -> Option<&String> {
         match self {
             Etag::Undefined | Etag::Nulled => None,
-            Etag::Specified(s) => Some(s)
+            Etag::Specified(s) => Some(s),
         }
     }
 }
@@ -278,7 +278,7 @@ pub struct BatchPutRequest {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchUpdateRequest {
     pub bucket: String,
-    pub options: Option<MethodOptions>,
+    pub options: MethodOptions,
     pub key: String,
     pub fields: Value,
     pub filter: String,
@@ -287,14 +287,14 @@ pub struct BatchUpdateRequest {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchDeleteRequest {
     pub bucket: String,
-    pub options: Option<MethodOptions>,
+    pub options: MethodOptions,
     pub key: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchDeleteManyRequest {
     pub bucket: String,
-    pub options: Option<MethodOptions>,
+    pub options: MethodOptions,
     pub filter: String,
 }
 
@@ -316,7 +316,6 @@ where
     fast_client::send(String::from("batch"), arg, &mut msg_id, stream)
         .and_then(|_| {
             fast_client::receive(stream, |resp| {
-
                 // Expected return value looks like:
                 // resp.data.d:
                 //  [{
@@ -330,6 +329,9 @@ where
                 // TODO: make this generic.  This only works for put returns
                 let arr: Vec<Value> =
                     serde_json::from_value(resp.data.d.clone())?;
+
+                dbg!(arr);
+                /*
                 if arr.len() != 1 {
                     return Err(Error::new(
                         ErrorKind::Other,
@@ -338,12 +340,14 @@ where
                         ),
                     ));
                 }
+                */
 
+                /*
                 let etags: Vec<BatchPutReturn> = serde_json::from_value(
                     arr[0]["etags"].clone())?;
-
                 batch_handler(&serde_json::to_string(&etags)?)
-
+                */
+                batch_handler("")
             })
         })?;
 
@@ -374,7 +378,7 @@ mod test {
 
         requests.push(BatchRequest::DeleteMany(BatchDeleteManyRequest {
             bucket: String::from("foo bucket"),
-            options: Some(MethodOptions::default()),
+            options: MethodOptions::default(),
             filter: String::from("(mydelete=filter)"),
         }));
 
