@@ -7,10 +7,7 @@ extern crate serde_json;
 
 use moray::buckets;
 use moray::client::MorayClient;
-use moray::objects::{
-    self, BatchDeleteManyRequest, BatchDeleteRequest, BatchPutRequest,
-    BatchRequest, Etag,
-};
+use moray::objects::{self, BatchPutRequest, BatchRequest, Etag};
 use slog::{o, Drain, Logger};
 use std::io::{Error, ErrorKind};
 use std::sync::Mutex;
@@ -20,9 +17,9 @@ fn main() -> Result<(), Error> {
     let port: u16 = 2021;
 
     let bucket_name = "rust_test_bucket";
-    let mut opts = objects::MethodOptions::default();
+    let opts = objects::MethodOptions::default();
     let bucket_opts = buckets::MethodOptions::default();
-    let mut new_etag = String::from("");
+    let new_etag = String::from("");
 
     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
     let log = Logger::root(
@@ -90,83 +87,46 @@ fn main() -> Result<(), Error> {
             .unwrap();
     }
 
-    println!("============1 Delete, 2 Puts ==============");
+    let mut bad_opts = opts.clone();
+    bad_opts.etag = Etag::Specified(new_etag);
 
-    let requests: Vec<BatchRequest> = vec![
-        BatchRequest::Delete(BatchDeleteRequest {
+    let put_requests: Vec<BatchPutRequest> = vec![
+        BatchPutRequest {
             bucket: bucket_name.to_string(),
-            options: opts.clone(),
+            options: bad_opts,
             key: "circle_constant".to_string(),
-        }),
-        BatchRequest::Put(BatchPutRequest {
+            value: json!({"aNumber": 12.28}),
+        },
+        BatchPutRequest {
             bucket: bucket_name.into(),
             options: opts.clone(),
             key: "eulers_number".to_string(),
-            value: json!({"state": "wrong", "aNumber": 4.718}),
-        }),
-        BatchRequest::Put(BatchPutRequest {
+            value: json!({"aNumber": 4.718}),
+        },
+        BatchPutRequest {
             bucket: bucket_name.into(),
             options: opts.clone(),
             key: "golden_ratio".to_string(),
-            value: json!({"state": "wrong", "aNumber": 2.618}),
-        }),
+            value: json!({"aNumber": 2.618}),
+        },
     ];
+
+    let mut requests = vec![];
+
+    for req in put_requests.iter() {
+        requests.push(BatchRequest::Put((*req).clone()));
+    }
 
     mclient.batch(&requests, &opts, |_| Ok(()))?;
 
-    for req in requests.iter() {
-        let (bucket, key) = match req {
-            BatchRequest::Put(r) => (&r.bucket, &r.key),
-            BatchRequest::Delete(r) => (&r.bucket, &r.key),
-            _ => panic!("operation"),
-        };
-
+    for req in put_requests.iter() {
         mclient
-            .get_object(bucket, key, &opts, |o| {
+            .get_object(&req.bucket, &req.key, &opts, |o| {
                 dbg!(o);
                 Ok(())
             })
             .unwrap();
     }
-
-    println!("============ DeleteMany ==============");
-
-    let requests: Vec<BatchRequest> = vec![
-        BatchRequest::DeleteMany(BatchDeleteManyRequest {
-            bucket: bucket_name.to_string(),
-            options: opts.clone(),
-            filter: String::from("(state=wrong)"),
-        }),
-        BatchRequest::Put(BatchPutRequest {
-            bucket: bucket_name.into(),
-            options: opts.clone(),
-            key: "avagadro".to_string(),
-            value: json!({"aNumber": 6.02214}),
-        }),
-    ];
-
-    mclient.batch(&requests, &opts, |_| Ok(()))?;
-
-    mclient
-        .get_object(bucket_name, "avagadro", &opts, |o| {
-            dbg!(o);
-            Ok(())
-        })
-        .unwrap();
-
-    mclient
-        .get_object(bucket_name, "golden_ratio", &opts, |o| {
-            dbg!(o);
-            Ok(())
-        })
-        .unwrap();
-
-    mclient
-        .get_object(bucket_name, "eulers_number", &opts, |o| {
-            dbg!(o);
-            Ok(())
-        })
-        .unwrap();
 
     Ok(())
 }

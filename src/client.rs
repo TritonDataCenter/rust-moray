@@ -199,7 +199,7 @@ impl MorayClient {
         object_handler: F,
     ) -> Result<(), Error>
     where
-        F: FnMut(&str) -> Result<(), Error>,
+        F: FnMut(Vec<Value>) -> Result<(), Error>,
     {
         let mut conn = self.connection_pool.claim().unwrap();
         objects::batch(&mut (*conn).deref_mut(), requests, opts, object_handler)

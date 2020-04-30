@@ -306,8 +306,19 @@ pub fn batch<F>(
     mut batch_handler: F,
 ) -> Result<(), Error>
 where
-    F: FnMut(&str) -> Result<(), Error>,
+    F: FnMut(Vec<Value>) -> Result<(), Error>,
 {
+    // We only support Put Operations right now
+    if requests.iter().any(|r| match r {
+        BatchRequest::Put(_) => false,
+        _ => true,
+    }) {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Only Put operations are supported",
+        ));
+    }
+
     let batch_requests =
         serde_json::to_value(requests.to_owned()).expect("batch requests");
     let arg = json!([batch_requests, opts]);
@@ -316,38 +327,13 @@ where
     fast_client::send(String::from("batch"), arg, &mut msg_id, stream)
         .and_then(|_| {
             fast_client::receive(stream, |resp| {
-                // Expected return value looks like:
-                // resp.data.d:
-                //  [{
-                //      "etags": [
-                //          BucketPutReturn{},
-                //          BucketPutReturn{},
-                //          BucketPutReturn{},
-                //          ...
-                //      ]
-                //  }]
-                // TODO: make this generic.  This only works for put returns
-                let arr: Vec<Value> =
-                    serde_json::from_value(resp.data.d.clone())?;
-
-                dbg!(arr);
-                /*
-                if arr.len() != 1 {
-                    return Err(Error::new(
-                        ErrorKind::Other,
-                        format!("Expected response to be a single element Array, got: {:?}",
-                                arr
-                        ),
-                    ));
-                }
-                */
-
-                /*
-                let etags: Vec<BatchPutReturn> = serde_json::from_value(
-                    arr[0]["etags"].clone())?;
-                batch_handler(&serde_json::to_string(&etags)?)
-                */
-                batch_handler("")
+                // The response is a Vec<Value>, where each Value can take a
+                // different form depending on the batch operation.  We
+                // assume there are no ordering guarntees, and the Value's
+                // make no mention of the operation they are associated with.
+                // So we really have no choice but to return this opaque Vec of
+                // Value's.
+                batch_handler(serde_json::from_value(resp.data.d.clone())?)
             })
         })?;
 
