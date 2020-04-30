@@ -86,18 +86,6 @@ pub struct MethodOptions {
     limit: Option<u64>,
 }
 
-/*
-impl Serialize for MethodOptions {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("MethodOptions", )
-
-    }
-}
-*/
-
 impl Default for MethodOptions {
     fn default() -> Self {
         Self {
@@ -145,13 +133,6 @@ impl Methods {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PutObjectReturn {
     etag: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct BatchPutReturn {
-    bucket: String,
-    etag: String,
-    key: String,
 }
 
 fn null_to_zero<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -261,9 +242,9 @@ where
 #[serde(rename_all = "camelCase")]
 pub enum BatchRequest {
     Put(BatchPutOp),
-    Update(BatchUpdateRequest),
-    Delete(BatchDeleteRequest),
-    DeleteMany(BatchDeleteManyRequest),
+    Update(BatchUpdateOp),
+    Delete(BatchDeleteOp),
+    DeleteMany(BatchDeleteManyOp),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -276,7 +257,7 @@ pub struct BatchPutOp {
 
 /// For now we only support Put operations
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct BatchUpdateRequest {
+pub struct BatchUpdateOp {
     pub bucket: String,
     pub options: MethodOptions,
     pub key: String,
@@ -285,14 +266,14 @@ pub struct BatchUpdateRequest {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct BatchDeleteRequest {
+pub struct BatchDeleteOp {
     pub bucket: String,
     pub options: MethodOptions,
     pub key: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct BatchDeleteManyRequest {
+pub struct BatchDeleteManyOp {
     pub bucket: String,
     pub options: MethodOptions,
     pub filter: String,
@@ -370,7 +351,7 @@ mod test {
             value,
         }));
 
-        requests.push(BatchRequest::DeleteMany(BatchDeleteManyRequest {
+        requests.push(BatchRequest::DeleteMany(BatchDeleteManyOp {
             bucket: String::from("foo bucket"),
             options: MethodOptions::default(),
             filter: String::from("(mydelete=filter)"),
