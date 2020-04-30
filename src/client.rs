@@ -194,7 +194,7 @@ impl MorayClient {
 
     pub fn batch<F>(
         &mut self,
-        requests: &Vec<objects::BatchRequest>,
+        requests: &[objects::BatchRequest],
         opts: &objects::MethodOptions,
         object_handler: F,
     ) -> Result<(), Error>

@@ -165,6 +165,7 @@ where
     }
 }
 
+#[allow(clippy::redundant_closure)]
 fn decode_object<F>(fm_data: &Value, mut cb: F) -> Result<(), Error>
 where
     F: FnMut(MorayObject) -> Result<(), Error>,
@@ -259,22 +260,21 @@ where
 #[serde(tag = "operation")]
 #[serde(rename_all = "camelCase")]
 pub enum BatchRequest {
-    Put(BatchPutRequest),
+    Put(BatchPutOp),
     Update(BatchUpdateRequest),
     Delete(BatchDeleteRequest),
     DeleteMany(BatchDeleteManyRequest),
 }
 
-// TODO: impl Default for BatchRequest {} (default to Put)
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct BatchPutRequest {
+pub struct BatchPutOp {
     pub bucket: String,
     pub options: MethodOptions,
     pub key: String,
     pub value: Value,
 }
 
+/// For now we only support Put operations
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BatchUpdateRequest {
     pub bucket: String,
@@ -301,7 +301,7 @@ pub struct BatchDeleteManyRequest {
 // Returns Err on EtagConflict and does not call the object_handler
 pub fn batch<F>(
     stream: &mut TcpStream,
-    requests: &Vec<BatchRequest>,
+    requests: &[BatchRequest],
     opts: &MethodOptions,
     mut batch_handler: F,
 ) -> Result<(), Error>
@@ -340,22 +340,30 @@ where
     Ok(())
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
+    use std::net::TcpListener;
+
     #[test]
-    fn batch_test() {
+    fn batch_unsupported_test() {
         let mut requests = vec![];
+        let opts = MethodOptions::default();
         let value = json!({
             "field 1": "value 1",
             "objectID": "someuuid",
             "number": 4
         });
 
-        let mut stream = TcpStream::connect("localhost:8000").unwrap();
+        // Spawn a thread keep up the dummy_stream's ruse
+        let listen_handle = std::thread::spawn(|| {
+            let listener = TcpListener::bind("localhost:8000").unwrap();
+            listener.accept().unwrap();
+        });
 
-        // TODO: spawn thread to listen on localhost:8080
+        let mut dummy_stream = TcpStream::connect("localhost:8000").unwrap();
 
-        requests.push(BatchRequest::Put(BatchPutRequest {
+        requests.push(BatchRequest::Put(BatchPutOp {
             bucket: String::from("foo bucket"),
             options: MethodOptions::default(),
             key: String::from("somekey"),
@@ -368,8 +376,9 @@ mod test {
             filter: String::from("(mydelete=filter)"),
         }));
 
-        let opts = MethodOptions::default();
-        batch(&mut stream, &requests, &opts, |_| Ok(())).expect("batch");
+        assert!(batch(&mut dummy_stream, &requests, &opts, |_| Ok(())).is_err());
+
+        listen_handle.join().unwrap();
     }
 
     #[test]
