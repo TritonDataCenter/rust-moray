@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Joyent, Inc.
+ * Copyright 2020 Joyent, Inc.
  */
 
 use rust_fast::{client as fast_client, protocol::FastMessageId};
@@ -279,7 +279,10 @@ pub struct BatchDeleteManyOp {
     pub filter: String,
 }
 
-// Returns Err on EtagConflict and does not call the object_handler
+/// The moray server treats a batch as a transaction.  If any of the operations
+/// in the batch fail, none of them will be applied.  This includes
+/// EtagConflict's.  If there is an error, this function will return Err()
+/// and the `batch_handler` will not be called.
 pub fn batch<F>(
     stream: &mut TcpStream,
     requests: &[BatchRequest],
