@@ -2,6 +2,8 @@
  * Copyright 2020 Joyent, Inc.
  */
 
+use quickcheck::{Arbitrary, Gen};
+use quickcheck_helpers::random::string as random_string;
 use rust_fast::{client as fast_client, protocol::FastMessageId};
 use serde::ser::Serializer;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -9,6 +11,8 @@ use serde_json::{json, Value};
 use std::io::{Error, ErrorKind};
 use std::net::TcpStream;
 use uuid::Uuid;
+use rand::Rng;
+use libmanta::moray::MantaObject;
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct MorayObject {
@@ -21,6 +25,24 @@ pub struct MorayObject {
     pub _txn_snap: Option<u64>,
     pub key: String,
     pub value: Value, // Bucket schema dependent
+}
+
+impl Arbitrary for MorayObject {
+    fn arbitrary<G: Gen>(g: &mut G) -> MorayObject {
+        let len = g.gen_range(1, 20) as usize;
+        let value = serde_json::to_value(
+            MantaObject::arbitrary(g)).expect("arbitrary manta object");
+        MorayObject {
+            bucket: random_string(g, len),
+            _count: g.gen_range(0, std::i64::MAX),
+            _etag: random_string(g, len),
+            _id: g.gen_range(0, std::i64::MAX),
+            _mtime: g.gen_range(0, std::i64::MAX),
+            _txn_snap: Some(g.gen_range(0, std::i64::MAX)),
+            key: random_string(g, len),
+            value
+        }
+    }
 }
 
 ///
