@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 Joyent, Inc.
+ * Copyright 2020 Joyent, Inc.
  */
 
 use cueball::backend::Backend;
@@ -22,6 +22,7 @@ use super::buckets;
 use super::meta;
 use super::objects;
 
+#[derive(Clone)]
 pub struct MorayClient {
     connection_pool: ConnectionPool<
         TcpStreamWrapper,
