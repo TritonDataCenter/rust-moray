@@ -2,7 +2,7 @@
  * Copyright 2020 Joyent, Inc.
  */
 
-use rust_fast::{client as fast_client, protocol::FastMessageId};
+use fast_rpc::{client as fast_client, protocol::FastMessageId};
 use serde::ser::Serializer;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
@@ -190,9 +190,9 @@ where
 {
     let obj_method = method.method();
     let arg = json!([bucket, key_filter, opts]);
-    let mut msg_id = FastMessageId::new();
+    let msg_id = FastMessageId::new();
 
-    fast_client::send(obj_method, arg, &mut msg_id, stream).and_then(|_| {
+    fast_client::send(obj_method, arg, msg_id, stream).and_then(|_| {
         fast_client::receive(stream, |resp| {
             decode_object(&resp.data.d, |obj| object_handler(&obj))
         })
@@ -213,9 +213,9 @@ where
     F: FnMut(&str) -> Result<(), Error>,
 {
     let arg = json!([bucket, key, value, opts]);
-    let mut msg_id = FastMessageId::new();
+    let msg_id = FastMessageId::new();
 
-    fast_client::send(Methods::Put.method(), arg, &mut msg_id, stream)
+    fast_client::send(Methods::Put.method(), arg, msg_id, stream)
         .and_then(|_| {
         fast_client::receive(stream, |resp| {
             let arr: Vec<PutObjectReturn> =
@@ -306,10 +306,10 @@ where
     let batch_requests =
         serde_json::to_value(requests.to_owned()).expect("batch requests");
     let arg = json!([batch_requests, opts]);
-    let mut msg_id = FastMessageId::new();
+    let msg_id = FastMessageId::new();
 
-    fast_client::send(String::from("batch"), arg, &mut msg_id, stream)
-        .and_then(|_| {
+    fast_client::send(String::from("batch"), arg, msg_id, stream).and_then(
+        |_| {
             fast_client::receive(stream, |resp| {
                 // The response is a Vec<Value>, where each Value can take a
                 // different form depending on the batch operation.  We
@@ -319,7 +319,8 @@ where
                 // Value's.
                 batch_handler(serde_json::from_value(resp.data.d.clone())?)
             })
-        })?;
+        },
+    )?;
 
     Ok(())
 }

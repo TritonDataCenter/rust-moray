@@ -8,6 +8,8 @@ use cueball::connection_pool::ConnectionPool;
 use cueball_static_resolver::StaticIpResolver;
 use cueball_tcp_stream_connection::TcpStreamWrapper;
 
+use fast_rpc::protocol::FastMessageId;
+
 use slog::Logger;
 use std::ops::DerefMut;
 
@@ -29,6 +31,7 @@ pub struct MorayClient {
         StaticIpResolver,
         fn(&Backend) -> TcpStreamWrapper,
     >,
+    msg_id: FastMessageId,
 }
 
 ///
@@ -63,6 +66,7 @@ impl MorayClient {
 
         Ok(MorayClient {
             connection_pool: pool,
+            msg_id: FastMessageId::new(),
         })
     }
 
@@ -219,6 +223,7 @@ impl MorayClient {
     {
         meta::sql(
             &mut self.connection_pool.claim().unwrap().deref_mut(),
+            self.msg_id.clone(),
             stmt,
             vals,
             opts,

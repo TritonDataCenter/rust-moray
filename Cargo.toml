@@ -10,7 +10,7 @@ cueball = "0.3.1"
 cueball-static-resolver = "0.3.0"
 cueball-tcp-stream-connection = "0.3.0"
 
-rust_fast = { git = "https://github.com/joyent/rust-fast", tag="v0.2.0" }
+fast-rpc = { git = "https://github.com/joyent/rust-fast", branch="fast-message-id-updates" }
 libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.7.0" }
 
 serde = { version = "1.0.89", features = ["derive"] }
