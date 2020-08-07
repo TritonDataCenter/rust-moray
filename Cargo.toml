@@ -11,7 +11,8 @@ cueball-static-resolver = "0.3.0"
 cueball-tcp-stream-connection = "0.3.0"
 
 rust_fast = { git = "https://github.com/joyent/rust-fast", tag="v0.2.0" }
-libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.7.0" }
+#libmanta = { git = "https://github.com/joyent/rust-libmanta", tag="v0.7.0" }
+libmanta = { git = "https://github.com/joyent/rust-libmanta", branch="new_diesel" }
 
 serde = { version = "1.0.89", features = ["derive"] }
 serde_json = "1.0.39"
@@ -20,9 +21,9 @@ slog-bunyan = { git = "https://github.com/kellymclaughlin/bunyan", branch = "bui
 
 uuid = {version = "0.7.4", features = ["v4"] }
 trust-dns-resolver = "0.11.1"
-unicode-normalization = "=0.1.5"
+#unicode-normalization = "=0.1.5"
 
-[patch.crates-io]
+#[patch.crates-io]
 # We require the use of certain constructs which unfortunately were not
 # included in the latest released version of diesel (1.4.3).  We are hopeful
 # that in a later version (presumably 1.4.4), they will be included, however
@@ -39,8 +40,8 @@ unicode-normalization = "=0.1.5"
 # Finally, dependencies listed in the patch section of this project are
 # transitive, so they should also be used when builing any depedencies that also
 # rely on diesel (which is a good thing).
-diesel = { git = "https://github.com/diesel-rs/diesel", rev = "f75e930e166eb448e3c41d5cdc7251cfcad681f6"}
-diesel_derives = { git = "https://github.com/diesel-rs/diesel" , rev = "f75e930e166eb448e3c41d5cdc7251cfcad681f6"}
+#diesel = { git = "https://github.com/diesel-rs/diesel", rev = "f75e930e166eb448e3c41d5cdc7251cfcad681f6"}
+#diesel_derives = { git = "https://github.com/diesel-rs/diesel" , rev = "f75e930e166eb448e3c41d5cdc7251cfcad681f6"}
 
 
 [dev-dependencies]
