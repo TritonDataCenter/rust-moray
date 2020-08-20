@@ -45,7 +45,7 @@ impl MorayClient {
 
         let pool_opts = match opts {
             None => ConnectionPoolOptions {
-                max_connections: Some(5),
+                max_connections: Some(3),
                 claim_timeout: Some(5000),
                 log: Some(log),
                 rebalancer_action_delay: None, // Default 100ms
